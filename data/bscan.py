@@ -25,6 +25,7 @@ def add_ramp_index(dataframe, offset=0, index_on='b_field'):
         Indexes on specified column identifier.
     """
 
+    dataframe['ramp_index'] = dataframe[index_on].fillna(method='ffill')
     dataframe['ramp_index'] = dataframe[index_on].diff().fillna(0)\
         .apply(_np.sign)
     nonzero = dataframe.ramp_index != 0
