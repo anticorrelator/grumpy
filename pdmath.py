@@ -116,7 +116,7 @@ def lowess(series, frac=.5):
 def absfft(series):
 
     """
-    Calculates the FFT magnitude of a pandas Series.
+    Calculates the (single-sided) FFT magnitude of a pandas Series.
 
     Internally absfft calls scipy's 'fft' function and 'fftfreq' helper
     function. absfft returns The fft magnitude of the input series indexed
@@ -143,4 +143,4 @@ def absfft(series):
     fft_mag = _fft.fft(y_data)
 
     fft_mag[-fft_length:] = _np.nan
-    return _pd.Series(_np.abs(fft_mag), index=fft_freq)
+    return _pd.Series(2 * _np.abs(fft_mag), index=fft_freq)

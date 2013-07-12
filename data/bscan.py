@@ -25,7 +25,7 @@ def add_ramp_index(dataframe, offset=0, index_on='b_field'):
         Indexes on specified column identifier.
     """
 
-    dataframe['ramp_index'] = dataframe[index_on].fillna(method='ffill')
+    dataframe['ramp_index'] = dataframe[index_on].fillna(method='pad')
     dataframe['ramp_index'] = dataframe[index_on].diff().fillna(0)\
         .apply(_np.sign)
     nonzero = dataframe.ramp_index != 0
@@ -106,7 +106,7 @@ def reduce_bscan(data, b=None, f=None, t=None, robust=True, cutoff=3):
         data = add_ramp_index(data)
 
     grouped = data.groupby([b, 'ramp_index'])
-    time = grouped[t].std().unstack()
+    time = grouped[t].mean().unstack()
     scatter = grouped[f].std().unstack()
 
     if robust is True:
@@ -255,45 +255,55 @@ class ReducedBScan:
         self.raw = self.raw[self.ramps]
         return self
 
-    def plot_scatter(self):
+    def plot_scatter(self, timeseries=False, **kwargs):
 
         """
         Plots standard deviation of frequency data vs. b-field.
         """
 
-        fig = _plt.figure()
-        ax = fig.add_subplot(111)
-        x_data = self.raw.index.values
-        ax.plot(x_data, self.scatter.values)
-        ax.set_title('Raw BScan data')
-        ax.set_xlabel('Applied B-Field [Tesla]')
+        if timeseries is True:
+            time = self.t.stack().values
+            y_values = self.scatter.stack().values
+            ax = _pd.Series(y_values, index=time).sort_index()\
+                .plot(marker='.', linestyle='None', **kwargs)
+            ax.set_xlabel('Measurement Time [seconds]')
+        else:
+            ax = self.scatter.plot(**kwargs)
+            ax.set_xlabel('Applied B-Field [Tesla]')
         ax.set_ylabel('Frequency [Hz]')
+        ax.set_title('Standard Deviation of Frequency data')
 
         box = ax.get_position()
         ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
         ax.legend(self.ramps, loc='center left', bbox_to_anchor=(1, 0.5))
 
         _plt.show()
+        return ax
 
-    def plot_raw(self):
+    def plot_raw(self, timeseries=False, **kwargs):
 
         """
         Plots raw frequency data (background included) vs. b-field.
         """
 
-        fig = _plt.figure()
-        ax = fig.add_subplot(111)
-        x_data = self.raw.index.values
-        ax.plot(x_data, self.raw.values)
-        ax.set_title('Raw BScan data')
-        ax.set_xlabel('Applied B-Field [Tesla]')
+        if timeseries is True:
+            time = self.t.stack().values
+            y_values = self.raw.stack().values
+            ax = _pd.Series(y_values, index=time).sort_index()\
+                .plot(marker='.', linestyle='None', **kwargs)
+            ax.set_xlabel('Measurement Time [seconds]')
+        else:
+            ax = self.raw.plot(**kwargs)
+            ax.set_xlabel('Applied B-Field [Tesla]')
         ax.set_ylabel('Frequency [Hz]')
+        ax.set_title('Raw BScan data')
 
         box = ax.get_position()
         ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
         ax.legend(self.ramps, loc='center left', bbox_to_anchor=(1, 0.5))
 
         _plt.show()
+        return ax
 
     def copy(self):
 
@@ -400,7 +410,7 @@ class AggregatedBScan(ReducedBScan):
         self.df = self.df[self.ramps]
         return self
 
-    def plot_with_background(self):
+    def plot_with_background(self, timeseries=False, **kwargs):
 
         """
         Plots background and raw data with a 1st order polynomial removed.
@@ -411,56 +421,77 @@ class AggregatedBScan(ReducedBScan):
         polynomial from both greatly improves clarity.
         """
 
-        fig = _plt.figure()
-        ax = fig.add_subplot(111)
-        x_data = self.f.index.values
-        ax.plot(x_data, self.f.values)
-        ax.plot(x_data, self.background.values)
-        ax.set_title('BScan data--linear drift removed')
-        ax.set_xlabel('Applied B-Field [Tesla]')
+        if timeseries is True:
+            time = self.t.stack().values
+            y_values = self.f.stack().values
+            y_background = self.background.stack().values
+            ax = _pd.Series(y_values, index=time).sort_index()\
+                .plot(marker='.', linestyle='None', **kwargs)
+            ax.set_xlabel('Measurement Time [seconds]')
+        else:
+            ax = self.f.plot(**kwargs)
+            self.background.plot(ax=ax)
+            ax.set_xlabel('Applied B-Field [Tesla]')
         ax.set_ylabel('Frequency [Hz]')
+        ax.set_title('BScan data--Linear background removed')
 
         box = ax.get_position()
         ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
         ax.legend(self.ramps, loc='center left', bbox_to_anchor=(1, 0.5))
 
         _plt.show()
+        return ax
 
-    def plot_df(self):
+    def plot_df(self, timeseries=False, **kwargs):
 
         """
         Plots frequency shift data.
         """
 
-        fig = _plt.figure()
-        ax = fig.add_subplot(111)
-        x_data = self.df.index.values
-        ax.plot(x_data, self.df.values)
-        ax.set_title('BScan data--drift removed')
-        ax.set_xlabel('Applied B-Field [Tesla]')
+        if timeseries is True:
+            time = self.t.stack().values
+            y_values = self.df.stack().values
+            ax = _pd.Series(y_values, index=time).sort_index()\
+                .plot(marker='.', linestyle='None', **kwargs)
+            ax.set_xlabel('Measurement Time [seconds]')
+        else:
+            ax = self.df.plot(**kwargs)
+            ax.set_xlabel('Applied B-Field [Tesla]')
         ax.set_ylabel('Frequency [Hz]')
+        ax.set_title('BScan data--Background removed')
 
         box = ax.get_position()
         ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
         ax.legend(self.ramps, loc='center left', bbox_to_anchor=(1, 0.5))
 
         _plt.show()
+        return ax
 
-    def plot(self):
+    def plot_fft(self, **kwargs):
+
+        """
+        Plots FFT of aggregrated frequency shift data.
+        """
+        ax = _gp.absfft(self.ab).plot(**kwargs)
+        ax.set_xlabel('Magnetic Field Frequency [1/Tesla]')
+        ax.set_ylabel('<df> [Hz]')
+        ax.set_title('FFT of Bscan data')
+
+        _plt.show()
+        return ax
+
+    def plot(self, **kwargs):
 
         """
         Plots aggregated frequency shift data.
         """
-
-        fig = _plt.figure()
-        ax = fig.add_subplot(111)
-        x_data = self.ab.index.values
-        ax.plot(x_data, self.ab.values)
-        ax.set_title('Averaged BScan data')
+        ax = self.ab.plot(**kwargs)
         ax.set_xlabel('Applied B-Field [Tesla]')
         ax.set_ylabel('Frequency [Hz]')
+        ax.set_title('Averaged BScan data')
 
         _plt.show()
+        return ax
 
     def copy(self):
 
