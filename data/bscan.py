@@ -1,5 +1,5 @@
 import numpy as _np
-import grumpy.pdmath as _gp
+import grumpy as _gp
 import pandas as _pd
 import matplotlib.pyplot as _plt
 
@@ -254,6 +254,26 @@ class ReducedBScan:
         self.t = self.t[self.ramps]
         self.raw = self.raw[self.ramps]
         return self
+
+    def plot_scatter(self):
+
+        """
+        Plots standard deviation of frequency data vs. b-field.
+        """
+
+        fig = _plt.figure()
+        ax = fig.add_subplot(111)
+        x_data = self.raw.index.values
+        ax.plot(x_data, self.scatter.values)
+        ax.set_title('Raw BScan data')
+        ax.set_xlabel('Applied B-Field [Tesla]')
+        ax.set_ylabel('Frequency [Hz]')
+
+        box = ax.get_position()
+        ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+        ax.legend(self.ramps, loc='center left', bbox_to_anchor=(1, 0.5))
+
+        _plt.show()
 
     def plot_raw(self):
 
