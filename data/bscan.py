@@ -4,7 +4,7 @@ import pandas as _pd
 import matplotlib.pyplot as _plt
 
 
-def add_ramp_index(dataframe, offset=0, index_on='b_field'):
+def add_ramp_index(dataframe, offset=0, index_on='b_field', file_index=0):
 
     """
     Indexes a dataframe column with a linearly ramped structure.
@@ -14,7 +14,7 @@ def add_ramp_index(dataframe, offset=0, index_on='b_field'):
     inflection points.
 
     Accepts a pandas DataFrame, returns a pandas DataFrame with an additional
-    'ramp_index' column.
+    'ramp_index' column and 'file_index' column.
 
     Parameters
     ----------
@@ -23,6 +23,8 @@ def add_ramp_index(dataframe, offset=0, index_on='b_field'):
         datasets.
     index_on : string, default 'b_field'
         Indexes on specified column identifier.
+    file_index : integer, default 0
+        Adds another index that's useful when merging or joining dataframes.
     """
 
     dataframe['ramp_index'] = dataframe[index_on].fillna(method='pad')
@@ -32,6 +34,10 @@ def add_ramp_index(dataframe, offset=0, index_on='b_field'):
     dataframe.ramp_index[nonzero] = dataframe.ramp_index[nonzero]\
         .diff().fillna(0).apply(_np.abs).apply(_np.sign)
     dataframe.ramp_index = dataframe.ramp_index.cumsum() + offset
+
+    dataframe['file_index'] = file_index * _np.ones(len(dataframe
+                                                    .ramp_index))
+
     return dataframe
 
 
@@ -41,7 +47,7 @@ def join_bscans(df_list, **kwargs):
     Adds sequential ramp indices and concatenates bscans.
 
     Accepts a list of pandas DataFrames, returns a single pandas DataFrame
-    with an additional 'ramp_index' column.
+    with an additional 'ramp_index' column and 'file_index' column.
 
     Parameters
     ----------
@@ -51,11 +57,14 @@ def join_bscans(df_list, **kwargs):
     """
 
     ramp_counter = 0
+    file_counter = 0
     for dataframe in df_list:
         dataframe = add_ramp_index(dataframe,
                                    offset=ramp_counter,
+                                   file_index=file_counter,
                                    **kwargs)
         ramp_counter += len(dataframe.ramp_index.unique())
+        file_counter += 1
 
     return _pd.concat(df_list)
 
@@ -107,6 +116,7 @@ def reduce_bscan(data, b=None, f=None, t=None, robust=True, cutoff=3):
 
     grouped = data.groupby([b, 'ramp_index'])
     time = grouped[t].mean().unstack()
+    files = grouped.file_index.mean().unstack()
     scatter = grouped[f].std().unstack()
 
     if robust is True:
@@ -115,7 +125,7 @@ def reduce_bscan(data, b=None, f=None, t=None, robust=True, cutoff=3):
     else:
         raw = grouped[f].mean().unstack()
 
-    return ReducedBScan(raw, scatter, time)
+    return ReducedBScan(raw, scatter, time, files)
 
 
 class ReducedBScan:
@@ -142,6 +152,8 @@ class ReducedBScan:
         field and column indexed by ramp index.
     self.ramps : numpy Array
         Array containing all unique ramp indices.
+    self._files : pandas DataFrame
+        File identifier. Used to untangle data joined using 'join_bscans'.
 
     Methods
     -------
@@ -157,11 +169,45 @@ class ReducedBScan:
         Instantiates another ReducedBScan object that is a copy of self
     """
 
-    def __init__(self, f, scatter, t):
+    def __init__(self, f, scatter, t, files):
         self.raw = f
         self.scatter = scatter
         self.t = t
+        self._files = files
         self.ramps = self.raw.columns.values.astype('float')
+
+    def _to_timeseries(self, attr):
+
+        """
+        Converts specified attribute to a timeseries.
+        """
+
+        timestamps = self.t.stack().values
+        files = self._files.stack().values
+        values = attr.stack().values
+        ts = _pd.DataFrame(values, index=[timestamps, files]).unstack()\
+            .sort_index().fillna(method='bfill')
+        ts.index.names = ['measurement_time']
+        ts.columns.names = ['file']
+
+        return ts
+
+    def _ab_range(self, dia=None, w=None, t=None, angle=None):
+
+        if dia is None:
+            dia = 250e-9
+        if w is None:
+            w = 50e-9
+        if t is None:
+            t = 50e-9
+        if angle is None:
+            angle = 45
+
+        theta = angle * _np.pi / 180
+        dia0 = _np.sin(theta) * dia
+        delta = w * _np.cos(theta) + t * _np.sin(theta)
+        phi0 = 6.62607e-34 / 1.60218e-19
+        return ((dia0 - delta) ** 2 / phi0, (dia0 + delta) ** 2 / phi0)
 
     def _lowess_window(self, abperiod=.1, window=5):
         b = self.raw.index.values
@@ -252,6 +298,7 @@ class ReducedBScan:
         self.ramps = _np.delete(self.ramps, ramps_to_drop)
         self.scatter = self.scatter[self.ramps]
         self.t = self.t[self.ramps]
+        self._files = self._files[self.ramps]
         self.raw = self.raw[self.ramps]
         return self
 
@@ -262,10 +309,7 @@ class ReducedBScan:
         """
 
         if timeseries is True:
-            time = self.t.stack().values
-            y_values = self.scatter.stack().values
-            ax = _pd.Series(y_values, index=time).sort_index()\
-                .plot(marker='.', linestyle='None', **kwargs)
+            ax = self._to_timeseries(self.scatter).plot(**kwargs)
             ax.set_xlabel('Measurement Time [seconds]')
         else:
             ax = self.scatter.plot(**kwargs)
@@ -287,10 +331,7 @@ class ReducedBScan:
         """
 
         if timeseries is True:
-            time = self.t.stack().values
-            y_values = self.raw.stack().values
-            ax = _pd.Series(y_values, index=time).sort_index()\
-                .plot(marker='.', linestyle='None', **kwargs)
+            ax = self._to_timeseries(self.raw).plot(**kwargs)
             ax.set_xlabel('Measurement Time [seconds]')
         else:
             ax = self.raw.plot(**kwargs)
@@ -356,6 +397,7 @@ class AggregatedBScan(ReducedBScan):
     def __init__(self, parent_bscan, fullbackground, background, f, df):
         self.raw = parent_bscan.raw
         self.t = parent_bscan.t
+        self._files = parent_bscan._files
         self.scatter = parent_bscan.scatter
         self.ramps = parent_bscan.ramps
         self.fullbackground = fullbackground
@@ -403,6 +445,7 @@ class AggregatedBScan(ReducedBScan):
         self.ramps = _np.delete(self.ramps, ramps_to_drop)
         self.scatter = self.scatter[self.ramps]
         self.t = self.t[self.ramps]
+        self._files = self._files[self.ramps]
         self.raw = self.raw[self.ramps]
         self.fullbackground = self.fullbackground[self.ramps]
         self.background = self.background[self.ramps]
@@ -422,11 +465,8 @@ class AggregatedBScan(ReducedBScan):
         """
 
         if timeseries is True:
-            time = self.t.stack().values
-            y_values = self.f.stack().values
-            y_background = self.background.stack().values
-            ax = _pd.Series(y_values, index=time).sort_index()\
-                .plot(marker='.', linestyle='None', **kwargs)
+            ax = self._to_timeseries(self.f).plot(**kwargs)
+            self._to_timeseries(self.background).plot(ax=ax)
             ax.set_xlabel('Measurement Time [seconds]')
         else:
             ax = self.f.plot(**kwargs)
@@ -449,10 +489,7 @@ class AggregatedBScan(ReducedBScan):
         """
 
         if timeseries is True:
-            time = self.t.stack().values
-            y_values = self.df.stack().values
-            ax = _pd.Series(y_values, index=time).sort_index()\
-                .plot(marker='.', linestyle='None', **kwargs)
+            ax = self._to_timeseries(self.df).plot(**kwargs)
             ax.set_xlabel('Measurement Time [seconds]')
         else:
             ax = self.df.plot(**kwargs)
@@ -467,15 +504,23 @@ class AggregatedBScan(ReducedBScan):
         _plt.show()
         return ax
 
-    def plot_fft(self, **kwargs):
+    def plot_fft(self, dia=None, w=None, t=None, angle=None, **kwargs):
 
         """
         Plots FFT of aggregrated frequency shift data.
         """
-        ax = _gp.absfft(self.ab).plot(**kwargs)
+
+        fftdata = _gp.absfft(self.ab)
+        ax = fftdata.plot(**kwargs)
         ax.set_xlabel('Magnetic Field Frequency [1/Tesla]')
         ax.set_ylabel('<df> [Hz]')
         ax.set_title('FFT of Bscan data')
+
+        ab_range = self._ab_range(dia=dia, w=w, t=t, angle=angle)
+
+        ax.axvspan(2 * ab_range[0], 2 * ab_range[1], alpha=.4,
+                   color='yellow')
+        ax.axvspan(ab_range[0], ab_range[1], alpha=.5, color='pink')
 
         _plt.show()
         return ax
@@ -499,6 +544,6 @@ class AggregatedBScan(ReducedBScan):
         Returns a copy of self as a new AggregatedBScan object.
         """
 
-        return AggregatedBScan(ReducedBScan(self.raw, self.scatter, self.t),
-                               self.fullbackground, self.background, self.f,
-                               self.df)
+        return AggregatedBScan(ReducedBScan(self.raw, self.scatter, self.t,
+                               self._files), self.fullbackground,
+                               self.background, self.f, self.df)
