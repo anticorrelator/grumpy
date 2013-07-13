@@ -507,7 +507,31 @@ class AggregatedBScan(ReducedBScan):
     def plot_fft(self, dia=None, w=None, t=None, angle=None, **kwargs):
 
         """
-        Plots FFT of aggregrated frequency shift data.
+        Plots the single-sided FFT of aggregrated frequency shift data.
+
+        'plot_fft' utilizes scipy's fftpack helper functions 'fft' and
+        'fftfreq' through grumpy.absfft. It plots the energy-normalized
+        single-sided FFT with the magnetic-field frequency on the x-axis.
+
+        Transparent vertical bars are also overlaid on the FFT to indicate
+        the 1st and 2nd Aharonov-Bohm frequency ranges calculated from the
+        ring dimensions and orientation relative to the applied magnetic
+        field. These spans are calculated by the internal
+        ReducedBScan._ab_range method. If no ring parameters are passed,
+        AB frequencies are calculated from the default values in
+        the _ab_range method.
+
+        Parameters
+        ----------
+        dia : value, default None
+            Diameter of AB ring
+        w : value, default None
+            Linewidth of AB ring
+        t : value, default None
+            Thickness of AB ring
+        angle : value, default None
+            Angle of applied b-field relative to the plane of the ring
+        **kwargs passed to pandas.Series.plot
         """
 
         fftdata = _gp.absfft(self.ab)
