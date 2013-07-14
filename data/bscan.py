@@ -209,7 +209,11 @@ class ReducedBScan:
         phi0 = 6.62607e-34 / 1.60218e-19
         return ((dia0 - delta) ** 2 / phi0, (dia0 + delta) ** 2 / phi0)
 
-    def _lowess_window(self, abperiod=.1, window=5):
+    def _lowess_window(self, abperiod=None, window=5, **kwargs):
+
+        if abperiod is None:
+            abperiod = np.mean(self._ab_range(**kwargs))
+
         b = self.raw.index.values
         span = max(b) - min(b)
         frac = (window * abperiod) / span
@@ -513,7 +517,7 @@ class AggregatedBScan(ReducedBScan):
         'fftfreq' through grumpy.absfft. It plots the energy-normalized
         single-sided FFT with the magnetic-field frequency on the x-axis.
 
-        Transparent vertical bars are also overlaid on the FFT to indicate
+        Transparent vertical bars are overlaid on the FFT to indicate
         the 1st and 2nd Aharonov-Bohm frequency ranges calculated from the
         ring dimensions and orientation relative to the applied magnetic
         field. These spans are calculated by the internal
