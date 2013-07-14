@@ -1,2 +1,2 @@
-from grumpy.pdmath import *
+from grumpy.pdmath.pdmath import *
 from grumpy.data import *

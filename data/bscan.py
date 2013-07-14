@@ -212,7 +212,7 @@ class ReducedBScan:
     def _lowess_window(self, abperiod=None, window=5, **kwargs):
 
         if abperiod is None:
-            abperiod = np.mean(self._ab_range(**kwargs))
+            abperiod = _np.mean(self._ab_range(**kwargs))
 
         b = self.raw.index.values
         span = max(b) - min(b)
@@ -250,7 +250,7 @@ class ReducedBScan:
 
         return AggregatedBScan(self, fullbackground, background, f, df)
 
-    def smooth_with_lowess(self, frac=None, abperiod=.1, window=5):
+    def smooth_with_lowess(self, frac=None, abperiod=None, window=5):
 
         """
         Smooths self.raw with local linear regression (lowess).

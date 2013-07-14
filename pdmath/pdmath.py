@@ -1,6 +1,6 @@
 import numpy as _np
 import pandas as _pd
-import statsmodels.api as _sm
+import cylowess as _cl
 import scipy.fftpack as _fft
 
 
@@ -85,10 +85,14 @@ def polysmooth(series, order=5):
     return output
 
 
-def lowess(series, frac=.5):
+def lowess(series, frac=.5, **kwargs):
 
     """
     Smooths a pandas Series using local linear regression (lowess).
+
+    grumpy.lowess implements the fast 'cylowess' implementation built by
+    C. Vogel. The original code can be found here:
+    https://github.com/carljv/Will_it_Python/
 
     Outputs the fitted polynomial evaluated at the index values where the
     input series value is finite. NaN everywhere else.
@@ -100,6 +104,7 @@ def lowess(series, frac=.5):
     ----------
     frac : value between 0 and 1, default .5
         Fraction of data to span with filter window
+    **kwargs passed to cylowess.lowess
     """
 
     output = _np.empty(len(series))
@@ -108,7 +113,7 @@ def lowess(series, frac=.5):
     x_data = series.dropna().index.values.astype(float)
     y_data = series.dropna().values.astype(float)
 
-    smooth = _sm.nonparametric.lowess(y_data, x_data, frac=frac)
+    smooth = _cl.lowess(y_data, x_data, frac=frac, **kwargs)
     output[nanmask] = smooth[:, 1]
     return output
 
