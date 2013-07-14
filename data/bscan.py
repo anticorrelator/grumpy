@@ -212,7 +212,7 @@ class ReducedBScan:
     def _lowess_window(self, abperiod=None, window=5, **kwargs):
 
         if abperiod is None:
-            abperiod = _np.mean(self._ab_range(**kwargs))
+            abperiod = _np.mean(self._ab_range(**kwargs)) ** -1
 
         b = self.raw.index.values
         span = max(b) - min(b)
@@ -250,7 +250,7 @@ class ReducedBScan:
 
         return AggregatedBScan(self, fullbackground, background, f, df)
 
-    def smooth_with_lowess(self, frac=None, abperiod=None, window=5):
+    def smooth_with_lowess(self, frac=None, it=None, delta=None, **kwargs):
 
         """
         Smooths self.raw with local linear regression (lowess).
@@ -261,8 +261,9 @@ class ReducedBScan:
 
         When 'frac' is not passed as an argument, an estimate for the
         smoothing window size is generated from the default values for
-        'abperiod' (Aharonov-Bohm period) and 'window'. These parameters
-        are adjustable.
+        'abperiod' (Aharonov-Bohm period) and 'window' from the internal
+        method _lowess_window. Optionally, we can pass **kwargs for specific
+        ring parameters to better estimate the Aharonov-Bohm period.
 
         When 'frac' is passed as an argument, the window size calculated
         from 'abperiod' and 'window' is overridden.
@@ -271,19 +272,23 @@ class ReducedBScan:
 
         Parameters
         ----------
-        frac : value between 0 and 1, default None
-            Fraction of data to span with filter window, overrides
-            the window calculated by window*abperiod/span
-        abperiod : value, default .1
-            Size of an Aharonov-Bohm period in Tesla
-        window : value, default 5
-            Smoothing window size as a multiple of Aharonov-Bohm periods
+        frac: float
+            Between 0 and 1. The fraction of the data used
+            when estimating each y-value.
+        it: int
+            The number of residual-based reweightings to perform.
+        delta: float
+            Distance within which to use linear-interpolation
+            instead of weighted regression.
+        **kwargs passed to _lowess_window to calculate "frac" parameter
         """
 
         if frac is None:
-            frac = self._lowess_window(abperiod=abperiod, window=window)
+            frac = self._lowess_window(**kwargs)
 
-        fullbackground = self.raw[self.ramps].apply(_gp.lowess, frac=frac)
+        print(frac)
+        fullbackground = self.raw[self.ramps]\
+            .apply(_gp.lowess, frac=frac, it=it, delta=delta)
         linear = fullbackground.apply(_gp.polysmooth, order=1)
         background = fullbackground - linear
         f = self.raw[self.ramps] - linear

@@ -85,7 +85,7 @@ def polysmooth(series, order=5):
     return output
 
 
-def lowess(series, frac=.5, **kwargs):
+def lowess(series, frac=.5, delta=None, it=None):
 
     """
     Smooths a pandas Series using local linear regression (lowess).
@@ -102,9 +102,15 @@ def lowess(series, frac=.5, **kwargs):
 
     Parameters
     ----------
-    frac : value between 0 and 1, default .5
-        Fraction of data to span with filter window
-    **kwargs passed to cylowess.lowess
+    frac: float, default .5
+            Between 0 and 1. The fraction of the data used
+            when estimating each y-value.
+        it: int, default 3
+            The number of residual-based reweightings
+            to perform.
+        delta: float, default 1 percent of range(x_data)
+            Distance within which to use linear-interpolation
+            instead of weighted regression.
     """
 
     output = _np.empty(len(series))
@@ -113,7 +119,12 @@ def lowess(series, frac=.5, **kwargs):
     x_data = series.dropna().index.values.astype(float)
     y_data = series.dropna().values.astype(float)
 
-    smooth = _cl.lowess(y_data, x_data, frac=frac, **kwargs)
+    if it is None:
+        it = 3
+    if delta is None:
+         delta = .01 * (max(x_data) - min(x_data))
+
+    smooth = _cl.lowess(y_data, x_data, frac=frac, it=it, delta=delta)
     output[nanmask] = smooth[:, 1]
     return output
 
