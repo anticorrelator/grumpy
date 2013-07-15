@@ -286,7 +286,6 @@ class ReducedBScan:
         if frac is None:
             frac = self._lowess_window(**kwargs)
 
-        print(frac)
         fullbackground = self.raw[self.ramps]\
             .apply(_gp.lowess, frac=frac, it=it, delta=delta)
         linear = fullbackground.apply(_gp.polysmooth, order=1)
@@ -543,11 +542,12 @@ class AggregatedBScan(ReducedBScan):
         **kwargs passed to pandas.Series.plot
         """
 
-        fftdata = _gp.absfft(self.ab)
+        self.ab = _pd.DataFrame(self.ab)
+        fftdata = self.ab.apply(_gp.absfft)
         ax = fftdata.plot(**kwargs)
         ax.set_xlabel('Magnetic Field Frequency [1/Tesla]')
         ax.set_ylabel('<df> [Hz]')
-        ax.set_title('FFT of Bscan data')
+        ax.set_title('FFT of BScan data')
 
         ab_range = self._ab_range(dia=dia, w=w, t=t, angle=angle)
 

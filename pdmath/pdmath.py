@@ -122,7 +122,7 @@ def lowess(series, frac=.5, delta=None, it=None):
     if it is None:
         it = 3
     if delta is None:
-         delta = .01 * (max(x_data) - min(x_data))
+        delta = .01 * (max(x_data) - min(x_data))
 
     smooth = _cl.lowess(y_data, x_data, frac=frac, it=it, delta=delta)
     output[nanmask] = smooth[:, 1]
