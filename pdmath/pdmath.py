@@ -77,11 +77,11 @@ def polysmooth(series, order=5):
 
     output = _np.empty(len(series))
     output[:] = _np.nan
-    nanmask = _np.isfinite(series).values
+    nanmask = _np.isnan(series.values.astype(float))
     x_data = series.dropna().index.values.astype(float)
     y_data = series.dropna().values.astype(float)
     fit_polynomial = _np.polyfit(x_data, y_data, order)
-    output[nanmask] = _np.polyval(fit_polynomial, x_data)
+    output[~nanmask] = _np.polyval(fit_polynomial, x_data)
     return output
 
 
@@ -94,7 +94,7 @@ def lowess(series, frac=.5, delta=None, it=None):
     C. Vogel. The original code can be found here:
     https://github.com/carljv/Will_it_Python/
 
-    Outputs the fitted polynomial evaluated at the index values where the
+    Outputs the smoothed function at the index values where the
     input series value is finite. NaN everywhere else.
 
     Accepts (single index) pandas Series, returns a numpy array of the same
@@ -113,9 +113,9 @@ def lowess(series, frac=.5, delta=None, it=None):
             instead of weighted regression.
     """
 
-    output = _np.empty(len(series))
+    output = _np.empty(series.shape)
     output[:] = _np.nan
-    nanmask = _np.isfinite(series).values
+    nanmask = _np.isnan(series.values.astype(float))
     x_data = series.dropna().index.values.astype(float)
     y_data = series.dropna().values.astype(float)
 
@@ -125,7 +125,7 @@ def lowess(series, frac=.5, delta=None, it=None):
         delta = .01 * (max(x_data) - min(x_data))
 
     smooth = _cl.lowess(y_data, x_data, frac=frac, it=it, delta=delta)
-    output[nanmask] = smooth[:, 1]
+    output[~nanmask] = smooth[:, 1]
     return output
 
 
@@ -159,4 +159,4 @@ def absfft(series):
     fft_mag = _fft.fft(y_data)
 
     fft_mag[-fft_length:] = _np.nan
-    return _pd.Series(_np.sqrt(2) * _np.abs(fft_mag), index=fft_freq)
+    return _pd.Series(_np.abs(fft_mag) / (2 * len(series)), index=fft_freq)

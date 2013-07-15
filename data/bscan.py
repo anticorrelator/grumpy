@@ -28,7 +28,7 @@ def add_ramp_index(dataframe, offset=0, index_on='b_field', file_index=0):
     """
 
     dataframe['ramp_index'] = dataframe[index_on].fillna(method='pad')
-    dataframe['ramp_index'] = dataframe[index_on].diff().fillna(0)\
+    dataframe['ramp_index'] = dataframe.ramp_index.diff().fillna(0)\
         .apply(_np.sign)
     nonzero = dataframe.ramp_index != 0
     dataframe.ramp_index[nonzero] = dataframe.ramp_index[nonzero]\
@@ -114,7 +114,7 @@ def reduce_bscan(data, b=None, f=None, t=None, robust=True, cutoff=3):
     else:
         data = add_ramp_index(data)
 
-    grouped = data.groupby([b, 'ramp_index'])
+    grouped = data.fillna(method='pad').groupby([b, 'ramp_index'])
     time = grouped[t].mean().unstack()
     files = grouped.file_index.mean().unstack()
     scatter = grouped[f].std().unstack()
