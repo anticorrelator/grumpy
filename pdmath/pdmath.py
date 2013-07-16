@@ -1,7 +1,9 @@
 import numpy as _np
 import pandas as _pd
 import cylowess as _cl
+import scipy.stats as _sps
 import scipy.fftpack as _fft
+import scipy.integrate as _spi
 
 
 def reject_outliers(data, deviation_tolerance=3):
@@ -48,14 +50,14 @@ def robust_mean(data, stdcutoff=None, deviation_tolerance=3):
     """
 
     if stdcutoff is None:
-        return _np.mean(reject_outliers(data,
-                        deviation_tolerance=deviation_tolerance))
+        return _sps.nanmean(reject_outliers(data,
+                            deviation_tolerance=deviation_tolerance))
     else:
         if _np.std(data) < stdcutoff:
-            return _np.mean(data)
+            return _sps.nanmean(data)
         else:
-            return _np.mean(reject_outliers(data,
-                            deviation_tolerance=deviation_tolerance))
+            return _sps.nanmean(reject_outliers(data,
+                                deviation_tolerance=deviation_tolerance))
 
 
 def polysmooth(series, order=5):
@@ -150,13 +152,39 @@ def absfft(series):
     length.
     """
 
-    fft_length = _np.ceil(len(series) / 2)
-
     x_data = series.dropna().index.values.astype(float)
     y_data = series.dropna().values.astype(float)
 
-    fft_freq = _fft.fftfreq(len(series), d=_np.mean(_np.diff(x_data)))
+    fft_length = _np.ceil(len(series) / 2)
+    fft_spacing = _np.mean(_np.diff(x_data))
+    fft_range = max(x_data) - min(x_data)
+
+    fft_freq = _fft.fftfreq(len(series), d=fft_spacing)
     fft_mag = _fft.fft(y_data)
 
     fft_mag[-fft_length:] = _np.nan
-    return _pd.Series(_np.abs(fft_mag) / (2 * len(series)), index=fft_freq)
+    return _pd.Series(_np.sqrt(2 * fft_range) / len(series)
+                      * _np.abs(fft_mag), index=fft_freq)
+
+def psd(series):
+    return absfft(series) ** 2
+
+def iintegrate(series):
+    x_data = series.sort_index().index.values.astype(float)
+    y_data = series.sort_index().values.astype(float)
+
+    integrated = _spi.cumtrapz(y_data, x_data)
+
+    return _pd.Series(integrated, index=series.sort_index().index)
+
+def dintegrate(series, xmin, xmax, closed=True):
+    raw = series.sort_index()
+    x_data = raw.index.values.astype(float)
+
+    if closed is True:
+        sliced = raw[x_data >= xmin & x_data <= x_max]
+    else:
+        sliced = raw[x_data > xmin & x_data < x_max]
+
+    return _spi.trapz(sliced.values.astype(float),
+                      sliced.index.values.astype(float))

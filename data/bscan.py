@@ -81,7 +81,7 @@ def reduce_bscan(data, b=None, f=None, t=None, robust=True, cutoff=3):
     and creates buckets of points indexed by ramp number and b_field. This
     groups together all points taken per "field step."
 
-    The resulting buckets are aggregated using either _np.mean or
+    The resulting buckets are aggregated using either 'mean' or
     'robust_mean'. Robust averaging can be selected using the boolean
     'robust' flag.
 
@@ -97,7 +97,7 @@ def reduce_bscan(data, b=None, f=None, t=None, robust=True, cutoff=3):
     t : string, default 'measurement_time'
         Name of DataFrame column with timestamps
     robust : boolean, default True
-        Aggregates data with _np.mean or robust_mean
+        Aggregates data with mean or robust_mean
     cutoff : value, default 3
         Cutoff for outlier rejection, used in robust_mean
     """
@@ -371,7 +371,7 @@ class AggregatedBScan(ReducedBScan):
     This subclass inhereits attributes and methods from ReducedBScan and
     adds new ones related to the existence of a guess for the background.
     Upon instantiation, AggregatedBScan aggregates the frequency shift
-    data using _np.mean. This can be changed using the self.aggregate_with
+    data using mean. This can be changed using the self.aggregate_with
     method.
 
     An AggregatedBScan object is instantiated any time a smoothing
