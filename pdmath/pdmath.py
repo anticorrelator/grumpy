@@ -166,25 +166,29 @@ def absfft(series):
     return _pd.Series(_np.sqrt(2 * fft_range) / len(series)
                       * _np.abs(fft_mag), index=fft_freq)
 
+
 def psd(series):
     return absfft(series) ** 2
 
-def iintegrate(series):
+
+def iintegrate(series, initial=0):
     x_data = series.sort_index().index.values.astype(float)
     y_data = series.sort_index().values.astype(float)
 
-    integrated = _spi.cumtrapz(y_data, x_data)
+    integrated = _spi.cumtrapz(y_data, x_data, initial)
+    output = _np.insert(integrated, 0, initial)
 
-    return _pd.Series(integrated, index=series.sort_index().index)
+    return _pd.Series(output, index=series.sort_index().index)
+
 
 def dintegrate(series, xmin, xmax, closed=True):
     raw = series.sort_index()
     x_data = raw.index.values.astype(float)
 
     if closed is True:
-        sliced = raw[x_data >= xmin & x_data <= x_max]
+        sliced = raw[(x_data >= xmin) & (x_data <= xmax)]
     else:
-        sliced = raw[x_data > xmin & x_data < x_max]
+        sliced = raw[(x_data > xmin) & (x_data < xmax)]
 
     return _spi.trapz(sliced.values.astype(float),
                       sliced.index.values.astype(float))
