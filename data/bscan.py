@@ -399,6 +399,7 @@ class AggregatedBScan(ReducedBScan):
     self.drop_ramps
     self.plot_with_background
     self.plot_df
+    self.plot_fft
     self.plot
     self.copy
     """
