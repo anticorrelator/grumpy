@@ -69,7 +69,8 @@ def join_bscans(df_list, **kwargs):
     return _pd.concat(df_list)
 
 
-def reduce_bscan(data, b=None, f=None, t=None, robust=True, stdcutoff=1):
+def reduce_bscan(data, b=None, f=None, t=None,
+                 robust=True, stdcutoff=1, **kwargs):
 
     """
     Averages bscan data at each field point.
@@ -98,7 +99,7 @@ def reduce_bscan(data, b=None, f=None, t=None, robust=True, stdcutoff=1):
         Name of DataFrame column with timestamps
     robust : boolean, default True
         Aggregates data with mean or robust_mean
-    cutoff : value, default 1
+    stdcutoff : value, default 1
         Cutoff for outlier rejection, used in robust_mean
     """
 
@@ -121,7 +122,7 @@ def reduce_bscan(data, b=None, f=None, t=None, robust=True, stdcutoff=1):
 
     if robust is True:
         raw = grouped[f].apply(_gp.robust_mean, stdcutoff=stdcutoff*scatter
-                               .median().median()).unstack()
+                               .median().median(), **kwargs).unstack()
     else:
         raw = grouped[f].mean().unstack()
 

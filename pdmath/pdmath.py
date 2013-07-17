@@ -223,7 +223,7 @@ def iintegrate(series, initial=0):
     return _pd.Series(output, index=series.sort_index().index)
 
 
-def dintegrate(series, xmin, xmax, closed=True):
+def dintegrate(series, xmin=None, xmax=None, closed=True):
 
     """
     Definite integration of a pandas Series.
@@ -245,6 +245,11 @@ def dintegrate(series, xmin, xmax, closed=True):
 
     raw = series.sort_index()
     x_data = raw.index.values.astype(float)
+
+    if xmin is None:
+        xmin = x_data[0]
+    if xmax is None:
+        xmin = x_data[-1]
 
     if closed is True:
         sliced = raw[(x_data >= xmin) & (x_data <= xmax)]
