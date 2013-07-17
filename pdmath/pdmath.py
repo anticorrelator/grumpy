@@ -163,6 +163,9 @@ def fft(series):
     same length.
     """
 
+    output = _np.empty(len(series))
+    output[:] = _np.nan
+
     x_data = series.dropna().index.values.astype(float)
     y_data = series.dropna().values.astype(float)
 
@@ -172,10 +175,12 @@ def fft(series):
 
     fft_freq = _fft.fftfreq(len(series), d=fft_spacing)
     fft_mag = _fft.fft(y_data)
-
     fft_mag[-fft_length:] = _np.nan
+
+    output[0:len(fft_mag)] = fft_mag
+
     return _pd.Series(_np.sqrt(2 * fft_range) / len(series)
-                      * fft_mag, index=fft_freq)
+                      * output, index=fft_freq)
 
 
 def absfft(series):
