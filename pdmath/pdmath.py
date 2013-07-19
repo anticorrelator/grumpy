@@ -179,7 +179,7 @@ def fft(series):
 
     output[0:len(fft_mag)] = fft_mag
 
-    return _pd.Series(_np.sqrt(2 * fft_range) / len(series)
+    return _pd.Series(_np.sqrt(2 * fft_range) / len(x_data)
                       * output, index=fft_freq)
 
 
@@ -219,13 +219,18 @@ def iintegrate(series, initial=0):
         Sets the start value for indefinite integration
     """
 
-    x_data = series.sort_index().index.values.astype(float)
-    y_data = series.sort_index().values.astype(float)
+    nanmask = _np.isnan(series.sort_index().values.astype(float))
+    conditioned = series.sort_index().fillna(0)
+
+    x_data = conditioned.index.values.astype(float)
+    y_data = conditioned.values.astype(float)
 
     integrated = _spi.cumtrapz(y_data, x_data, initial)
-    output = _np.insert(integrated, 0, initial)
+    integrated = _np.insert(integrated, 0, initial)
+    output = _pd.Series(integrated, index=series.sort_index().index)
+    output[nanmask] = _np.nan
 
-    return _pd.Series(output, index=series.sort_index().index)
+    return output
 
 
 def dintegrate(series, xmin=None, xmax=None, closed=True):
