@@ -304,11 +304,11 @@ class ReducedBScan:
         Accepts list or numpy Array, returns ReducedBScan object.
         """
 
-        self.ramps = _np.delete(self.ramps, ramps_to_drop)
-        self.scatter = self.scatter[self.ramps]
-        self.t = self.t[self.ramps]
-        self._files = self._files[self.ramps]
-        self.raw = self.raw[self.ramps]
+        self.ramps = _np.delete(self.ramps, ramps_to_drop).tolist()
+        self.scatter = self.scatter.filter(items=self.ramps)
+        self.t = self.t.filter(items=self.ramps)
+        self._files = self._files.filter(items=self.ramps)
+        self.raw = self.raw.filter(items=self.ramps)
         return self
 
     def plot_scatter(self, timeseries=False, **kwargs):
@@ -452,15 +452,15 @@ class AggregatedBScan(ReducedBScan):
         Accepts list or numpy Array, returns ReducedBScan object.
         """
 
-        self.ramps = _np.delete(self.ramps, ramps_to_drop)
-        self.scatter = self.scatter[self.ramps]
-        self.t = self.t[self.ramps]
-        self._files = self._files[self.ramps]
-        self.raw = self.raw[self.ramps]
-        self.fullbackground = self.fullbackground[self.ramps]
-        self.background = self.background[self.ramps]
-        self.f = self.f[self.ramps]
-        self.df = self.df[self.ramps]
+        self.ramps = _np.delete(self.ramps, ramps_to_drop).tolist()
+        self.scatter = self.scatter.filter(items=self.ramps)
+        self.t = self.t.filter(items=self.ramps)
+        self._files = self._files.filter(items=self.ramps)
+        self.raw = self.raw.filter(items=self.ramps)
+        self.fullbackground = self.fullbackground.filter(items=self.ramps)
+        self.background = self.background.filter(items=self.ramps)
+        self.f = self.f.filter(items=self.ramps)
+        self.df = self.df.filter(items=self.ramps)
         return self
 
     def plot_with_background(self, timeseries=False, **kwargs):
