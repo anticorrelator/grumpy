@@ -51,8 +51,8 @@ class ringdown():
 
     def __init__(self, datafile):
         raw = _pd.read_table(datafile, header=None)
-        self.data.ix['time'] = raw.ix[0, 2] * self.data.index.values
-        self.data.set_index(['time'], inplace=True)
+        raw['time'] = raw.ix[0, 2] * raw.index.values
+        raw.set_index(['time'], inplace=True)
         self.f0 = raw.ix[0, 3]
         self.tc_guess = raw.ix[0, 4]
 
