@@ -208,7 +208,8 @@ class ReducedBScan:
         dia0 = _np.sin(theta) * dia
         delta = w * _np.cos(theta) + t * _np.sin(theta)
         phi0 = 6.62607e-34 / 1.60218e-19
-        return ((dia0 - delta) * dia / phi0, (dia0 + delta) * dia / phi0)
+        return ((dia0 - delta) * (dia - w) / phi0,
+                (dia0 + delta) * (dia + w) / phi0)
 
     def _lowess_window(self, abperiod=None, window=5, **kwargs):
 
