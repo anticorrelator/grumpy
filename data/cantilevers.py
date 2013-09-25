@@ -36,29 +36,22 @@ def torsionf(cantilever_length, cantilever_width, cantilever_thickness,
         _np.sqrt((shear_modulus * xi) / (density * polar_moment))
 
 
-def rd_fit(rd_data, p0):
-
-    fitfunc = lambda p, time: p[0] * _np.exp(time / p[1])
-    errfunc = lambda p, time, data: _np.ravel(fitfunc(p, time) - data)
-
-    fitp = _sp.optimize.leastsq(errfunc, p0, args=(rd_data.index.
-                                values.astype(float), rd_data.T.values.
-                                astype(float)))
-    return fitp
-
-
 class ringdown():
 
     def __init__(self, datafile):
         raw = _pd.read_table(datafile, header=None)
         raw['time'] = raw.ix[0, 2] * raw.index.values
         raw.set_index(['time'], inplace=True)
+
         self.f0 = raw.ix[0, 3]
         self.tc_guess = raw.ix[0, 4]
-
         self.data = raw.drop([2, 3, 4], 1)
+        self.fit()
 
-    def fit(self, **kwargs):
+    def ringdownfunc(self, p0):
+        return lambda time: p0[0] * _np.exp(time / p0[1])
+
+    def fit(self):
 
         p0 = (self.data[0].max(), self.tc_guess)
 
@@ -67,7 +60,7 @@ class ringdown():
 
         self.fitp = _sp.optimize.leastsq(errfunc, p0, args=(self.data.index.
                                          values.astype(float),
-                                         self.data.values.astype(float)))
-        self.q = _np.abs(_np.pi * self.fitp[1] * self.f0)
+                                         self.data[0].values.astype(float)))
+        self.q = _np.abs(_np.pi * self.fitp[0][1] * self.f0)
 
         return self
