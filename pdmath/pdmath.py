@@ -3,6 +3,7 @@ import pandas as _pd
 import cylowess as _cl
 import scipy.stats as _sps
 import scipy.fftpack as _fft
+import scipy.optimize as _spo
 import scipy.integrate as _spi
 
 
@@ -268,3 +269,14 @@ def dintegrate(series, xmin=None, xmax=None, closed=True):
 
     return _spi.trapz(sliced.values.astype(float),
                       sliced.index.values.astype(float))
+
+
+def leastsq_fit(fitfunc, p0, series):
+
+    x_data = series.index.values.astype(float)
+    y_data = series.values.astype(float)
+
+    errfunc = lambda p, x, y: fitfunc(p, x) - _np.ravel(y)
+    fitp, success = _spo.leastsq(errfunc, p0, x_data, y_data)
+
+    return fitp
