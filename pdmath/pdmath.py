@@ -271,12 +271,11 @@ def dintegrate(series, xmin=None, xmax=None, closed=True):
                       sliced.index.values.astype(float))
 
 
-def leastsq_fit(fitfunc, p0, series):
+def lsfit(fitfunc, p0, series, **kwargs):
 
     x_data = series.index.values.astype(float)
     y_data = series.values.astype(float)
 
     errfunc = lambda p, x, y: fitfunc(p, x) - _np.ravel(y)
-    fitp, success = _spo.leastsq(errfunc, p0, x_data, y_data)
 
-    return fitp
+    return _spo.leastsq(errfunc, p0, args=(x_data, y_data), **kwargs)

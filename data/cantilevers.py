@@ -1,7 +1,7 @@
 import numpy as _np
-import scipy as _sp
-import scipy.special as _sps
+import grumpy as _gp
 import pandas as _pd
+import scipy.special as _sps
 
 
 def mode_gamma(mode_number):
@@ -56,17 +56,14 @@ class Ringdown():
         else:
             return lambda time: p[0] * _np.exp(time / p[1])
 
-    def fit(self):
+    def fit(self, **kwargs):
 
         p0 = (self.data[0].max(), self.tc_guess)
 
         fitfunc = self.ringdownfunc()
-        errfunc = lambda p, time, data: fitfunc(p, time) - _np.ravel(data)
 
-        self.fitp, self._success = \
-            _sp.optimize.leastsq(errfunc, p0,
-                                 args=(self.data.index.values.astype(float),
-                                       self.data[0].values.astype(float)))
+        self._fitoutput = _gp.lsfit(fitfunc, p0, self.data[0], **kwargs)
+        self.fitp = self._fitoutput[0]
         self.q = _np.abs(_np.pi * self.fitp[1] * self.f0)
         self.rdfit = self.ringdownfunc(self.fitp)
 
@@ -75,14 +72,39 @@ class Ringdown():
 
 class Calibration():
 
-    def __init__(self, ampscanfile, laser_pos, mode_number):
+    def __init__(self, ampscanfile, fiber_position, mode_number):
 
         params = _pd.read_table(ampscanfile, skiprows=1, nrows=1, header=None,
                                 index_col=0)
+        self.f0 = params[1]
+        self.wavelength = 1550e-9
+        self.fiber_position = fiber_position
+        self.mode_number = mode_number
 
         self.data = _pd.read_table(ampscanfile, skiprows=3, header=None,
                                    index_col=0)
-        self.f0 = params[1]
+        self.data[2].mul(1e-3)
+
+        self.fit()
+
+    def _calibrate(self):
+        vd_max = 1.842 / self.fitp[1]
+        x2v = 4 * _np.pi * vd_max / (1.842 * self.wavelength)
+        cal_range_1 = _np.linspace(0, .1 * vd_max, 1e3)
+        cal_range_2 = _np.linspace(0, .8 * vd_max, 1e3)
+        fiber_factor = _np.sqrt(2) * self.modeshape(self.fiber_position,
+                                                    self.mode_number)
+
+        smallfit = _np.polyfit(self.besselfit(cal_range_1),
+                               cal_range_1 / x2v, 1)
+
+        largefit = _np.polyfit(self.besselfit(cal_range_2),
+                               cal_range_2 / x2v, 4)
+
+        self.small = lambda x: _np.polyval(smallfit, x) / fiber_factor
+        self.large = lambda x: _np.polyval(largefit, x) / fiber_factor
+
+        return self
 
     def besselfunc(self, p=None):
 
@@ -91,15 +113,28 @@ class Calibration():
         else:
             return lambda x: p[0] * (p[2] * x + _sps.jn(1, p[1] * x))
 
-    def modeshape(self, laser_pos, nmode):
+    def modeshape(self, fiber_position, nmode):
 
         alpha = [-1.3622, -.9819, -1.008, -1.000]
-        a = alpha(nmode - 1)
+        a = alpha[nmode - 1]
 
         beta = [1.875, 4.694, 7.855, 10.996]
-        b = beta(nmode - 1)
+        b = beta[nmode - 1]
 
         shape = lambda z: a * (_np.cos(b * z) - _np.cosh(b * z)) + \
             (_np.sin(b * z) - _np.sinh(b * z))
 
-        return shape(laser_pos) / shape(1)
+        return shape(fiber_position) / shape(1)
+
+    def fit(self, **kwargs):
+
+        p0 = (.5819 * self.data[2].max(), 1, 0)
+
+        fitfunc = self.besselfunc()
+
+        self._fitoutput = _gp.lsfit(fitfunc, p0, self.data[2], **kwargs)
+        self.fitp = self._fitoutput[0]
+        self.besselfit = self.besselfunc(self.fitp)
+        self._calibrate()
+
+        return self
