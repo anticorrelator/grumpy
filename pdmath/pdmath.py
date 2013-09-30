@@ -271,6 +271,34 @@ def dintegrate(series, xmin=None, xmax=None, closed=True):
                       sliced.index.values.astype(float))
 
 
+# Add FitFunction, FitObject, and FittedObject classes
+
+# class FitObject():
+
+#     def __init__(self, lambda_function, series=None):
+#         self.fitfunc = lambda_function
+
+#         if p0 is None:
+#             self.p0 = 0
+#         else:
+#             self.p0 = p0
+
+#         if series is None:
+#             self.raw = 0
+#         else:
+#             self.raw = series
+
+#     def set_raw(self, series):
+#         self.raw = series
+#         return self
+
+#     def fit(self, p0, **kwargs):
+#         return lsfit(self.fitfunc, self.p0, self.series, **kwargs)
+
+
+# class FittedObject(FitObject):
+
+
 def lsfit(fitfunc, p0, series, **kwargs):
 
     x_data = series.index.values.astype(float)
