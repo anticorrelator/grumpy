@@ -276,53 +276,30 @@ def dintegrate(series, xmin=None, xmax=None, closed=True):
 
 class FitFunction():
 
-    def __init__(lambda_function):
+    def __init__(self, lambda_function):
         self.fitfunc = lambda_function
 
-    def __call__(p, x):
-        return self.fitfunc(p, _np.array(x))
+    def __call__(self, p, x_data):
+        return self.fitfunc(p, _np.array(x_data))
 
-    def set_params(params):
-        self.params = params
-        return(FittedFunction(self))
-
-
-class FittedFunction(FitFunction):
-
-    def __init__(parent):
-        self.fitfunc = lambda x: parent.fitfunc(parent.params, x)
-        self.params = parent.params
-
-    def __call__(x):
-        return self.fitfunc(_np.array(x))
+    def fit(self, p0, series, with_data=True):
+        fitp = lsfit(self.fitfunc, p0, series)[0]
+        return FitObject(self.fitfunc, fitp, series, with_data)
 
 
 class FitObject():
 
-    def __init__(self, lambda_function, series=None):
-        self.fitfunc = lambda_function
+    def __init__(self, fitfunc, fitp, series, with_data=True):
+        self.fitfunc = lambda x: fitfunc(fitp, x)
+        self.fitp = fitp
 
-        if p0 is None:
-            self.p0 = 0
-        else:
-            self.p0 = p0
+        if with_data is True:
+            self.data = _pd.DataFrame(series)
+            self.data['Fitted Curve'] = self(series.index.values.
+                                             astype(float))
 
-        if series is None:
-            self.raw = 0
-        else:
-            self.raw = series
-
-    def set_raw(self, series):
-        self.raw = series
-        return self
-
-    def fit(self, p0, **kwargs):
-        return lsfit(self.fitfunc, self.p0, self.series, **kwargs)
-
-
-class FittedObject(FitObject):
-
-    def __init__ ():
+    def __call__(self, x_data):
+        return self.fitfunc(x_data)
 
 
 def lsfit(fitfunc, p0, series, **kwargs):
