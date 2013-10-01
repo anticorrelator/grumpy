@@ -273,30 +273,56 @@ def dintegrate(series, xmin=None, xmax=None, closed=True):
 
 # Add FitFunction, FitObject, and FittedObject classes
 
-# class FitObject():
 
-#     def __init__(self, lambda_function, series=None):
-#         self.fitfunc = lambda_function
+class FitFunction():
 
-#         if p0 is None:
-#             self.p0 = 0
-#         else:
-#             self.p0 = p0
+    def __init__(lambda_function):
+        self.fitfunc = lambda_function
 
-#         if series is None:
-#             self.raw = 0
-#         else:
-#             self.raw = series
+    def __call__(p, x):
+        return self.fitfunc(p, _np.array(x))
 
-#     def set_raw(self, series):
-#         self.raw = series
-#         return self
-
-#     def fit(self, p0, **kwargs):
-#         return lsfit(self.fitfunc, self.p0, self.series, **kwargs)
+    def set_params(params):
+        self.params = params
+        return(FittedFunction(self))
 
 
-# class FittedObject(FitObject):
+class FittedFunction(FitFunction):
+
+    def __init__(parent):
+        self.fitfunc = lambda x: parent.fitfunc(parent.params, x)
+        self.params = parent.params
+
+    def __call__(x):
+        return self.fitfunc(_np.array(x))
+
+
+class FitObject():
+
+    def __init__(self, lambda_function, series=None):
+        self.fitfunc = lambda_function
+
+        if p0 is None:
+            self.p0 = 0
+        else:
+            self.p0 = p0
+
+        if series is None:
+            self.raw = 0
+        else:
+            self.raw = series
+
+    def set_raw(self, series):
+        self.raw = series
+        return self
+
+    def fit(self, p0, **kwargs):
+        return lsfit(self.fitfunc, self.p0, self.series, **kwargs)
+
+
+class FittedObject(FitObject):
+
+    def __init__ ():
 
 
 def lsfit(fitfunc, p0, series, **kwargs):
