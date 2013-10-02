@@ -271,13 +271,10 @@ def dintegrate(series, xmin=None, xmax=None, closed=True):
                       sliced.index.values.astype(float))
 
 
-# Add FitFunction, FitObject, and FittedObject classes
-
-
 class FitFunction():
 
-    def __init__(self, lambda_function):
-        self.fitfunc = lambda_function
+    def __init__(self, fitfunc):
+        self.fitfunc = fitfunc
 
     def __call__(self, p, x_data):
         return self.fitfunc(p, _np.array(x_data))
@@ -294,9 +291,11 @@ class FitObject():
         self.fitp = fitp
 
         if with_data is True:
-            self.data = _pd.DataFrame(series)
+            self.data = _pd.DataFrame(series, columns=['Raw'])
             self.data['Fitted Curve'] = self(series.index.values.
                                              astype(float))
+            self.data['Residuals'] = _np.abs(self.data['Raw'] -
+                                             self.data['Fitted Curve'])
 
     def __call__(self, x_data):
         return self.fitfunc(x_data)
