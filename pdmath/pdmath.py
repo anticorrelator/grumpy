@@ -143,6 +143,32 @@ def lowess(series, frac=.5, delta=None, it=None):
     return output
 
 
+def moving_average(series, window_length=7, window='hanning'):
+
+    """
+    """
+
+    if not window in ['flat', 'hanning', 'hamming', 'bartlett', 'blackman']:
+        raise(ValueError, "Window is on of 'flat', 'hanning', 'hamming', \
+              'bartlett', 'blackman'")
+
+    nanmask = _np.isnan(series.values.astype(float))
+    x_data = series.fillna(method='pad').values.astype(float)
+
+    if window == 'flat':
+        w = _np.ones(window_length, 'd')
+    else:
+        w = eval('_np.' + window + '(window_length)')
+
+    s = _np.r_[x_data[window_length - 1:0:-1], x_data,
+               x_data[-1:-window_length:-1]]
+
+    smoothed = _np.convolve(w / w.sum(), s, mode='same')
+    smoothed[nanmask] = _np.nan
+
+    return smoothed
+
+
 def fft(series):
 
     """
