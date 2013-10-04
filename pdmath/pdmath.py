@@ -119,10 +119,10 @@ def lowess(series, frac=.5, delta=None, it=None):
     frac: float, default .5
             Between 0 and 1. The fraction of the data used
             when estimating each y-value.
-        it: int, default 3
+    it: int, default 3
             The number of residual-based reweightings
             to perform.
-        delta: float, default 1 percent of range(x_data)
+    delta: float, default 1 percent of range(x_data)
             Distance within which to use linear-interpolation
             instead of weighted regression.
     """
@@ -143,14 +143,37 @@ def lowess(series, frac=.5, delta=None, it=None):
     return output
 
 
-def moving_average(series, window_length=7, window='hanning'):
+def rolling_window(series, window_length=5, window='hanning',
+                   delay_compensation=True):
 
     """
+    Smooths a pandas series using a moving windowed average.
+
+    Generates a window of type 'window' and length 'window_length' and
+    convolves this window with the input pandas series. By default, this
+    convolution is run in both directions and averaged to compensate for
+    the time lag introduced by rolling window techniques and also doubles the
+    smoothing power (generally set by the window length). The
+    delay-compensated rolling window filter is non-causal.
+
+    Accepts a (single index) pandas series, returns a numpy array of the
+    same length.
+
+    Parameters
+    ----------
+    window_length: int, default 5
+        Number of datapoints included in smoothing window.
+    window: ['flat', 'hanning', 'hamming', 'bartlett', 'blackman']
+        Window type. Flat is a standard moving average.
+    delay_compensation: boolean, default True
+        Flag that turns on delay compensation. Doubles smoothing power and
+        removes time lag associated with moving averages at cost of being
+        a non-causal filter.
     """
 
     if not window in ['flat', 'hanning', 'hamming', 'bartlett', 'blackman']:
-        raise(ValueError, "Window is on of 'flat', 'hanning', 'hamming', \
-              'bartlett', 'blackman'")
+        raise(ValueError, "Window is not 'flat', 'hanning', 'hamming', \
+              'bartlett', or 'blackman'")
 
     nanmask = _np.isnan(series.values.astype(float))
     x_data = series.fillna(method='pad').values.astype(float)
@@ -163,10 +186,25 @@ def moving_average(series, window_length=7, window='hanning'):
     s = _np.r_[x_data[window_length - 1:0:-1], x_data,
                x_data[-1:-window_length:-1]]
 
-    smoothed = _np.convolve(w / w.sum(), s, mode='same')
+    smoothed = _np.convolve(w / w.sum(), s, mode='valid')
+    smoothed = smoothed[(window_length - 1):]
     smoothed[nanmask] = _np.nan
 
-    return smoothed
+    if delay_compensation is True:
+
+        x_reversed = x_data[::-1]
+        s_r = _np.r_[x_reversed[window_length - 1:0:-1], x_reversed,
+                     x_reversed[-1:-window_length:-1]]
+
+        smoothed_r = _np.convolve(w / w.sum(), s_r, mode='valid')
+        smoothed_r = smoothed_r[(window_length - 1):][::-1]
+        smoothed_r[nanmask] = _np.nan
+
+        return (smoothed + smoothed_r) / 2
+
+    else:
+
+        return smoothed
 
 
 def fft(series):
