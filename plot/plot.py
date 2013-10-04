@@ -2,10 +2,10 @@ import numpy as _np
 import matplotlib as _mpl
 import matplotlib.pyplot as _plt
 import matplotlib.pylab as _pylab
-import husl as _husl
+import grumpy.plot.husl as _husl
 
 
-def huslgen(hue, sat=70, light=50):
+def huslgen(hue, sat=80, light=50):
     return _husl.husl_to_hex(hue * 3.6, sat, light)
 
 
@@ -117,4 +117,7 @@ def waterfall(the_dataframe, offset=.3):
                     facecolor=lighten(first_color),
                     alpha=.2)
 
+    ax.legend(the_dataframe.columns.values)
     rstyle(ax)
+
+    return ax

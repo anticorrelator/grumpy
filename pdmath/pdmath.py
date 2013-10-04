@@ -116,13 +116,13 @@ def lowess(series, frac=.5, delta=None, it=None):
 
     Parameters
     ----------
-    frac: float, default .5
+    frac : float, default .5
             Between 0 and 1. The fraction of the data used
             when estimating each y-value.
-    it: int, default 3
+    it : int, default 3
             The number of residual-based reweightings
             to perform.
-    delta: float, default 1 percent of range(x_data)
+    delta : float, default 1 percent of range(x_data)
             Distance within which to use linear-interpolation
             instead of weighted regression.
     """
@@ -161,11 +161,11 @@ def rolling_window(series, window_length=5, window='hanning',
 
     Parameters
     ----------
-    window_length: int, default 5
+    window_length : int, default 5
         Number of datapoints included in smoothing window.
-    window: ['flat', 'hanning', 'hamming', 'bartlett', 'blackman']
+    window : ['flat', 'hanning', 'hamming', 'bartlett', 'blackman']
         Window type. Flat is a standard moving average.
-    delay_compensation: boolean, default True
+    delay_compensation : boolean, default True
         Flag that turns on delay compensation. Doubles smoothing power and
         removes time lag associated with moving averages at cost of being
         a non-causal filter.

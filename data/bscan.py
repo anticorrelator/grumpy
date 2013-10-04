@@ -69,7 +69,7 @@ def join_bscans(df_list, **kwargs):
     return _pd.concat(df_list)
 
 
-def reduce_bscan(data, b=None, f=None, t=None,
+def reduce_bscan(data, b=None, f=None, t=None, temp=None,
                  robust=True, stdcutoff=1, **kwargs):
 
     """
@@ -97,6 +97,8 @@ def reduce_bscan(data, b=None, f=None, t=None,
         Name of DataFrame column with frequency data
     t : string, default 'measurement_time'
         Name of DataFrame column with timestamps
+    temp : string, default 'thermometer_c'
+        Name of DataFrame column with temperature data
     robust : boolean, default True
         Aggregates data with mean or robust_mean
     stdcutoff : value, default 1
@@ -109,6 +111,8 @@ def reduce_bscan(data, b=None, f=None, t=None,
         f = 'cantilever_frequency'
     if t is None:
         t = 'measurement_time'
+    if temp is None:
+        temp = 'thermometer_c'
 
     if type(data) is list:
         data = join_bscans(data)
@@ -119,6 +123,7 @@ def reduce_bscan(data, b=None, f=None, t=None,
     time = grouped[t].mean().unstack()
     files = grouped.file_index.mean().unstack()
     scatter = grouped[f].std().unstack()
+    avg_temp = grouped[temp].mean()
 
     if robust is True:
         raw = grouped[f].apply(_gp.robust_mean, stdcutoff=stdcutoff*scatter
@@ -126,7 +131,7 @@ def reduce_bscan(data, b=None, f=None, t=None,
     else:
         raw = grouped[f].mean().unstack()
 
-    return ReducedBScan(raw, scatter, time, files)
+    return ReducedBScan(raw, scatter, time, files, avg_temp)
 
 
 class ReducedBScan:
@@ -151,6 +156,8 @@ class ReducedBScan:
     self.t : pandas DataFrame
         The average of the timestamps at each field step. Row indexed by B
         field and column indexed by ramp index.
+    self.temp : value
+        Average temperature of entire measurement in Kelvin.
     self.ramps : numpy Array
         Array containing all unique ramp indices.
     self._files : pandas DataFrame
@@ -170,10 +177,11 @@ class ReducedBScan:
         Instantiates another ReducedBScan object that is a copy of self
     """
 
-    def __init__(self, f, scatter, t, files):
+    def __init__(self, f, scatter, t, files, temp):
         self.raw = f
         self.scatter = scatter
         self.t = t
+        self.temp = temp
         self._files = files
         self.ramps = self.raw.columns.values.astype('float')
 
@@ -332,10 +340,9 @@ class ReducedBScan:
             ax.set_xlabel('Applied B-Field [Tesla]')
         ax.set_ylabel('Frequency [Hz]')
         ax.set_title('Standard Deviation of Frequency data')
+        ax.legend(self.ramps)
 
-        box = ax.get_position()
-        ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
-        ax.legend(self.ramps, loc='center left', bbox_to_anchor=(1, 0.5))
+        _gp.rstyle(ax)
 
         _plt.show()
         return ax
@@ -354,10 +361,9 @@ class ReducedBScan:
             ax.set_xlabel('Applied B-Field [Tesla]')
         ax.set_ylabel('Frequency [Hz]')
         ax.set_title('Raw BScan data')
+        ax.legend(self.ramps)
 
-        box = ax.get_position()
-        ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
-        ax.legend(self.ramps, loc='center left', bbox_to_anchor=(1, 0.5))
+        _gp.rstyle(ax)
 
         _plt.show()
         return ax
@@ -414,6 +420,7 @@ class AggregatedBScan(ReducedBScan):
     def __init__(self, parent_bscan, fullbackground, background, f, df):
         self.raw = parent_bscan.raw
         self.t = parent_bscan.t
+        self.temp = parent_bscan.temp
         self._files = parent_bscan._files
         self.scatter = parent_bscan.scatter
         self.ramps = parent_bscan.ramps
@@ -495,10 +502,9 @@ class AggregatedBScan(ReducedBScan):
             ax.set_xlabel('Applied B-Field [Tesla]')
         ax.set_ylabel('Frequency [Hz]')
         ax.set_title('BScan data--Linear background removed')
+        ax.legend(self.ramps)
 
-        box = ax.get_position()
-        ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
-        ax.legend(self.ramps, loc='center left', bbox_to_anchor=(1, 0.5))
+        _gp.rstyle(ax)
 
         _plt.show()
         return ax
@@ -517,10 +523,9 @@ class AggregatedBScan(ReducedBScan):
             ax.set_xlabel('Applied B-Field [Tesla]')
         ax.set_ylabel('Frequency [Hz]')
         ax.set_title('BScan data--Background removed')
+        ax.legend(self.ramps)
 
-        box = ax.get_position()
-        ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
-        ax.legend(self.ramps, loc='center left', bbox_to_anchor=(1, 0.5))
+        _gp.rstyle(ax)
 
         _plt.show()
         return ax
@@ -568,6 +573,8 @@ class AggregatedBScan(ReducedBScan):
                    color='yellow')
         ax.axvspan(ab_range[0], ab_range[1], alpha=.5, color='pink')
 
+        _gp.rstyle(ax)
+
         _plt.show()
         return ax
 
@@ -580,6 +587,8 @@ class AggregatedBScan(ReducedBScan):
         ax.set_xlabel('Applied B-Field [Tesla]')
         ax.set_ylabel('Frequency [Hz]')
         ax.set_title('Averaged BScan data')
+
+        _gp.rstyle(ax)
 
         _plt.show()
         return ax
