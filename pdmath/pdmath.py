@@ -176,7 +176,7 @@ def rolling_window(series, window_length=5, window='hanning',
               'bartlett', or 'blackman'")
 
     nanmask = _np.isnan(series.values.astype(float))
-    x_data = series.fillna(method='pad').values.astype(float)
+    x_data = series.fillna(method='bfill').values.astype(float)
 
     if window == 'flat':
         w = _np.ones(window_length, 'd')

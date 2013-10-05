@@ -316,9 +316,9 @@ class ReducedBScan:
         if type(ramps_to_drop) is int:
             ramps_to_drop = [ramps_to_drop]
 
-        ramp_mask = _np.array([any(_np.array(ramps_to_drop) != ramp)
+        ramp_mask = _np.array([any(_np.array(ramps_to_drop) == ramp)
                               for ramp in self.ramps])
-        self.ramps = self.ramps[ramp_mask]
+        self.ramps = self.ramps[~ramp_mask]
 
         self.scatter = self.scatter.filter(items=self.ramps)
         self.t = self.t.filter(items=self.ramps)
