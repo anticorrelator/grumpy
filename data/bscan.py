@@ -70,7 +70,8 @@ def join_bscans(df_list, **kwargs):
 
 
 def reduce_bscan(data, b=None, f=None, t=None, temp=None,
-                 robust=True, stdcutoff=1, **kwargs):
+                 robust=True, stdcutoff=1, cantilever_object=None,
+                 **kwargs):
 
     """
     Averages bscan data at each field point.
@@ -123,7 +124,7 @@ def reduce_bscan(data, b=None, f=None, t=None, temp=None,
     time = grouped[t].mean().unstack()
     files = grouped.file_index.mean().unstack()
     scatter = grouped[f].std().unstack()
-    avg_temp = grouped[temp].mean()
+    avg_temp = _np.mean(_np.mean(grouped[temp].mean()))
 
     if robust is True:
         raw = grouped[f].apply(_gp.robust_mean, stdcutoff=stdcutoff*scatter
@@ -131,7 +132,8 @@ def reduce_bscan(data, b=None, f=None, t=None, temp=None,
     else:
         raw = grouped[f].mean().unstack()
 
-    return ReducedBScan(raw, scatter, time, files, avg_temp)
+    return ReducedBScan(raw, scatter, time, files, avg_temp,
+                        cantilever_object=cantilever_object)
 
 
 class ReducedBScan:
@@ -177,13 +179,37 @@ class ReducedBScan:
         Instantiates another ReducedBScan object that is a copy of self
     """
 
-    def __init__(self, f, scatter, t, files, temp):
+    def __init__(self, f, scatter, t, files, temp, cantilever_object=None):
         self.raw = f
         self.scatter = scatter
         self.t = t
         self.temp = temp
         self._files = files
         self.ramps = self.raw.columns.values.astype('float')
+
+        if cantilever_object is None:
+            self.cantilever = _gp.Bunch()
+            self.cantilever.w = 300e-6
+            self.cantilever.l = 500e-6
+            self.cantilever.t = 120e-9
+            self.cantilever.f0 = f.mean().mean()
+            self.cantilever.angle = 45
+            self.cantilever.mode = 1
+            self.cantilever.density = 2.33e3
+
+            self.cantilever.ring = _gp.Bunch()
+            self.cantilever.ring.spacing = 800e-9
+            self.cantilever.ring.linewidth = 50e-9
+            self.cantilever.ring.thickness = 50e-9
+            self.cantilever.ring.dia = 250e-9
+            self.cantilever.ring.density = 19.3e3
+            self.cantilever.ring.fraction = .4
+            self.cantilever.ring.number = self._total_rings()
+
+            self.cantilever.k = self._cantilever_k()
+
+        else:
+            self.cantilever = cantilever_object
 
     def _to_timeseries(self, attr):
 
@@ -200,6 +226,24 @@ class ReducedBScan:
         ts.columns.names = ['file']
 
         return ts
+
+    def _total_rings(self):
+        pad_area = self.cantilever.w * \
+            self.cantilever.ring.fraction * self.cantilever.l
+        ring_area = self.cantilever.ring.spacing ** 2
+        return pad_area / ring_area
+
+    def _cantilever_k(self):
+        au_mass = self.cantilever.ring.number * self.cantilever.ring.density \
+            * self.cantilever.ring.thickness * self.cantilever.ring.dia * 4 \
+            * self.cantilever.ring.linewidth
+
+        cantilever_mass = self.cantilever.w * self.cantilever.l * \
+            self.cantilever.t * self.cantilever.density
+        cantilever_emass = (33 / 140) * cantilever_mass
+
+        total_mass = cantilever_emass + au_mass
+        return (2 * _np.pi * self.cantilever.f0) ** 2 * total_mass
 
     def _ab_range(self, dia=None, w=None, t=None, angle=None):
 
@@ -428,7 +472,14 @@ class AggregatedBScan(ReducedBScan):
         self.background = background
         self.f = f
         self.df = df
-        self.ab = self.df.mean(axis=1)
+        self.cantilever = parent_bscan.cantilever
+
+        self.sensitivity_factor()
+        if type(self.df) is _pd.Series:
+            self.di = self.convert_to_pc(self.df)
+        elif type(self.df) is _pd.DataFrame:
+            self.di = self.df.apply(self.convert_to_pc)
+        self.ab = self.di.mean(axis=1)
 
     def aggregate_with(self, method, drop=None, **kwargs):
 
@@ -451,12 +502,36 @@ class AggregatedBScan(ReducedBScan):
         """
 
         if drop is None:
-            self.ab = self.df.apply(method, axis=1, **kwargs)
+            self.ab = self.di.apply(method, axis=1, **kwargs)
         else:
-            self.ab = self.df[_np.delete(self.ramps, drop)]\
+            self.ab = self.di[_np.delete(self.ramps, drop)]\
                 .apply(method, axis=1, **kwargs)
 
         return self
+
+    def sensitivity_factor(self):
+        angle = self.cantilever.angle
+        nrings = self.cantilever.ring.number
+        aring = self.cantilever.ring.dia ** 2
+        f0 = self.cantilever.f0
+        k = self.cantilever.k
+        L = self.cantilever.l * (1 - self.cantilever.ring.fraction / 2)
+
+        alpha = 1.377
+
+        theta = angle * _np.pi / 180
+        self.sensitivity = - _np.sqrt(nrings) * (f0 / (2 * k)) * \
+            ((alpha / L) ** 2) * aring * (_np.cos(theta) ** 2 /
+                                          _np.sin(theta))
+
+    def convert_to_pc(self, df_series, sensitivity=None):
+
+        if sensitivity is None:
+            sensitivity = self.sensitivity
+
+        b = df_series.index.values.astype(float)
+        df = df_series.values.astype(float)
+        return df / (sensitivity * b ** 2)
 
     def drop_ramps(self, ramps_to_drop):
 
@@ -467,18 +542,11 @@ class AggregatedBScan(ReducedBScan):
         """
 
         super().drop_ramps(ramps_to_drop)
-        # ramp_mask = _np.array([any(_np.array(ramps_to_drop) != ramp)
-        #                       for ramp in self.ramps])
-        # self.ramps = self.ramps[ramp_mask]
-
-        # self.scatter = self.scatter.filter(items=self.ramps)
-        # self.t = self.t.filter(items=self.ramps)
-        # self._files = self._files.filter(items=self.ramps)
-        # self.raw = self.raw.filter(items=self.ramps)
         self.fullbackground = self.fullbackground.filter(items=self.ramps)
         self.background = self.background.filter(items=self.ramps)
         self.f = self.f.filter(items=self.ramps)
         self.df = self.df.filter(items=self.ramps)
+        self.di = self.di.filter(items=self.ramps)
         return self
 
     def plot_with_background(self, timeseries=False, **kwargs):

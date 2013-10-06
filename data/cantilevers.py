@@ -142,3 +142,6 @@ class Calibration():
         self._calibrate()
 
         return self
+
+
+# class Cantilever(Ringdown, Calibration):

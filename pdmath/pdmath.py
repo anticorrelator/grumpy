@@ -254,7 +254,7 @@ def absfft(series):
     Calculates the (single-sided) FFT magnitude of a pandas Series.
     """
 
-    return fft(series).apply(_np.abs)
+    return _np.abs(fft(series))
 
 
 def psd(series):
