@@ -515,7 +515,7 @@ class AggregatedBScan(ReducedBScan):
         aring = self.cantilever.ring.dia ** 2
         f0 = self.cantilever.f0
         k = self.cantilever.k
-        L = self.cantilever.l * (1 - self.cantilever.ring.fraction / 2)
+        L = self.cantilever.l
 
         alpha = 1.377
 
@@ -653,7 +653,7 @@ class AggregatedBScan(ReducedBScan):
         """
         ax = self.ab.plot(**kwargs)
         ax.set_xlabel('Applied B-Field [Tesla]')
-        ax.set_ylabel('Frequency [Hz]')
+        ax.set_ylabel('dI/dB [Amps/Tesla]')
         ax.set_title('Averaged BScan data')
 
         _gp.rstyle(ax)

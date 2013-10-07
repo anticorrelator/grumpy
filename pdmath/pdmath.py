@@ -1,10 +1,31 @@
 import numpy as _np
 import pandas as _pd
 import cylowess as _cl
+import scipy as _sp
 import scipy.stats as _sps
 import scipy.fftpack as _fft
 import scipy.optimize as _spo
 import scipy.integrate as _spi
+
+
+def clean_series(pd_series):
+
+    """
+    Fills NaN values in a pandas Series with linearly interpolated values.
+
+    If the first values are NaN, they are replaced with the first valid value
+    in the Series. clean_series also outputs a mask with the locations of all
+    NaNs. This is used to coerce the output array to be consistent with the
+    input array. clean_series is used to prepare pandas Series for various
+    math functions that may break with NaN values.
+
+    Accepts a pandas Series, returns a pandas Series and boolean array with
+    the same shape.
+    """
+
+    nanmask = _np.isnan(pd_series.values.astype(float))
+    clean_data = pd_series.interpolate().fillna(method='bfill')
+    return clean_data, nanmask
 
 
 def reject_outliers(data, deviation_tolerance=.6745):
@@ -207,6 +228,20 @@ def rolling_window(series, window_length=5, window='hanning',
         return smoothed
 
 
+def pdcorr(series_a, series_b, as_series=False):
+    clean_a = clean_series(series_a)[0]
+    clean_b = clean_series(series_b)[0]
+    correlated = _sp.correlate(clean_a, clean_b, 'same')
+
+    if as_series is False:
+        return correlated.values.astype(float)
+    else:
+        indices = _np.arange(_np.max((len(series_a), len(series_b))))
+        center = _np.ceil(_np.median(indices))
+        offset = indices - center
+        return _pd.Series(correlated.values.astype(float), index=offset)
+
+
 def fft(series):
 
     """
@@ -333,6 +368,38 @@ def dintegrate(series, xmin=None, xmax=None, closed=True):
 
     return _spi.trapz(sliced.values.astype(float),
                       sliced.index.values.astype(float))
+
+
+def align_series(pd_series, col_a, col_b):
+
+    ccorr = pdcorr(col_a, col_b, as_series=True)
+    offset = _np.min(ccorr.where(ccorr == ccorr.max()).dropna().index.values)
+
+    new_a = col_a.copy()
+    new_b = col_b.copy().shift(offset)
+
+    return new_a, new_b, offset
+
+
+def align_df(pd_dframe, ref_col=None, series_to_align=None):
+
+    new_frame = pd_dframe.copy()
+    offset_list = []
+
+    if series_to_align is None:
+        names = pd_dframe.columns.values
+        mask = _np.array([ref_col == name for name in names])
+        series_to_align = names[~mask]
+
+    for pd_series in series_to_align:
+        ccorr = pdcorr(new_frame[ref_col], new_frame[pd_series],
+                       as_series=True)
+        offset = _np.min(ccorr.where(ccorr == ccorr.max()).dropna().
+                         index.values)
+        new_frame[pd_series] = new_frame[pd_series].shift(offset)
+        offset_list.append(offset)
+
+    return new_frame, offset_list
 
 
 class FitFunction():
