@@ -375,31 +375,43 @@ def align_series(pd_series, col_a, col_b):
     ccorr = pdcorr(col_a, col_b, as_series=True)
     offset = _np.min(ccorr.where(ccorr == ccorr.max()).dropna().index.values)
 
-    new_a = col_a.copy()
     new_b = col_b.copy().shift(offset)
 
-    return new_a, new_b, offset
+    return new_b, offset
 
 
 def align_df(pd_dframe, ref_col=None, series_to_align=None):
 
-    new_frame = pd_dframe.copy()
+    df = pd_dframe.copy()
     offset_list = []
 
     if series_to_align is None:
         names = pd_dframe.columns.values
+    else:
+        names = series_to_align
+
+    if ref_col is not None:
         mask = _np.array([ref_col == name for name in names])
         series_to_align = names[~mask]
 
-    for pd_series in series_to_align:
-        ccorr = pdcorr(new_frame[ref_col], new_frame[pd_series],
-                       as_series=True)
-        offset = _np.min(ccorr.where(ccorr == ccorr.max()).dropna().
-                         index.values)
-        new_frame[pd_series] = new_frame[pd_series].shift(offset)
-        offset_list.append(offset)
+        for loop_col in series_to_align:
 
-    return new_frame, offset_list
+            new_col, offset = align_series(df[ref_col], df[loop_col])
+            df[loop_col] = new_col
+            offset_list.append(offset)
+
+        return df, offset_list
+
+    else:
+        sta = series_to_align
+
+        for loop_col, index in enumerate(series_to_align[1:]):
+
+            new_col, offset = align_series(df[sta[index]], df[loop_col])
+            df[loop_col] = new_col
+            offset_list.append(offset)
+
+        return df, offset_list
 
 
 class FitFunction():
