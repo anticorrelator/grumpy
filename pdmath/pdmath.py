@@ -370,12 +370,12 @@ def dintegrate(series, xmin=None, xmax=None, closed=True):
                       sliced.index.values.astype(float))
 
 
-def align_series(pd_series, col_a, col_b):
+def align_series(series_a, series_b):
 
-    ccorr = pdcorr(col_a, col_b, as_series=True)
+    ccorr = pdcorr(series_a, series_b, as_series=True)
     offset = _np.min(ccorr.where(ccorr == ccorr.max()).dropna().index.values)
 
-    new_b = col_b.copy().shift(offset)
+    new_b = series_b.copy().shift(offset)
 
     return new_b, offset
 
@@ -388,7 +388,7 @@ def align_df(pd_dframe, ref_col=None, series_to_align=None):
     if series_to_align is None:
         names = pd_dframe.columns.values
     else:
-        names = series_to_align
+        names = _np.array(series_to_align)
 
     if ref_col is not None:
         mask = _np.array([ref_col == name for name in names])
@@ -403,9 +403,9 @@ def align_df(pd_dframe, ref_col=None, series_to_align=None):
         return df, offset_list
 
     else:
-        sta = series_to_align
+        sta = names
 
-        for loop_col, index in enumerate(series_to_align[1:]):
+        for index, loop_col in enumerate(sta[1:]):
 
             new_col, offset = align_series(df[sta[index]], df[loop_col])
             df[loop_col] = new_col
