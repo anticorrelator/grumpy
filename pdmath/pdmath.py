@@ -228,7 +228,7 @@ def rolling_window(series, window_length=5, window='hanning',
         return smoothed
 
 
-def pdcorr(series_a, series_b, as_series=False):
+def correlate(series_a, series_b, as_series=False):
     clean_a = clean_series(series_a)[0]
     clean_b = clean_series(series_b)[0]
     correlated = _sp.correlate(clean_a, clean_b, 'same')
@@ -240,6 +240,35 @@ def pdcorr(series_a, series_b, as_series=False):
         center = _np.ceil(_np.median(indices))
         offset = indices - center
         return _pd.Series(correlated.values.astype(float), index=offset)
+
+
+def corr_df(pd_dframe, reference=None, series_list=None):
+
+    df = pd_dframe
+    new_cols = []
+
+    if series_list is None:
+        names = pd_dframe.columns.values
+    else:
+        names = _np.array(series_list)
+
+    if reference is not None:
+        mask = _np.array([reference == name for name in names])
+        series_list = names[~mask]
+
+        for loop_col in series_list:
+            new_cols.append(correlate(df[reference], df[loop_col],
+                            as_series=True))
+
+        return _pd.DataFrame(dict(zip(names, new_cols)))
+
+    else:
+
+        for index, loop_col in enumerate(names[1:]):
+            new_cols.append(correlate(df[names[index]], df[loop_col],
+                            as_series=True))
+
+        return _pd.DataFrame(dict(zip(names[1:], new_cols)))
 
 
 def fft(series):
@@ -263,8 +292,7 @@ def fft(series):
     same length.
     """
 
-    output = _np.empty(len(series))
-    output[:] = _np.nan
+    output = _np.zeros(len(series)) + 0j
 
     x_data = series.dropna().index.values.astype(float)
     y_data = series.dropna().values.astype(float)
@@ -277,7 +305,9 @@ def fft(series):
     fft_mag = _fft.fft(y_data)
     fft_mag[-fft_length:] = _np.nan
 
-    output[0:len(fft_mag)] = fft_mag
+    output[:len(fft_mag)] = fft_mag
+    if len(fft_mag) is not len(output):
+        output[len(fft_mag):] = _np.nan
 
     return _pd.Series(_np.sqrt(2 * fft_range) / len(x_data)
                       * output, index=fft_freq)
@@ -372,7 +402,7 @@ def dintegrate(series, xmin=None, xmax=None, closed=True):
 
 def align_series(series_a, series_b):
 
-    ccorr = pdcorr(series_a, series_b, as_series=True)
+    ccorr = correlate(series_a, series_b, as_series=True)
     offset = _np.min(ccorr.where(ccorr == ccorr.max()).dropna().index.values)
 
     new_b = series_b.copy().shift(offset)
@@ -380,23 +410,23 @@ def align_series(series_a, series_b):
     return new_b, offset
 
 
-def align_df(pd_dframe, ref_col=None, series_to_align=None):
+def align_df(pd_dframe, reference=None, series_list=None):
 
     df = pd_dframe.copy()
     offset_list = []
 
-    if series_to_align is None:
+    if series_list is None:
         names = pd_dframe.columns.values
     else:
-        names = _np.array(series_to_align)
+        names = _np.array(series_list)
 
-    if ref_col is not None:
-        mask = _np.array([ref_col == name for name in names])
-        series_to_align = names[~mask]
+    if reference is not None:
+        mask = _np.array([reference == name for name in names])
+        series_list = names[~mask]
 
-        for loop_col in series_to_align:
+        for loop_col in series_list:
 
-            new_col, offset = align_series(df[ref_col], df[loop_col])
+            new_col, offset = align_series(df[reference], df[loop_col])
             df[loop_col] = new_col
             offset_list.append(offset)
 
