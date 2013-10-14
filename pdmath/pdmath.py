@@ -4,6 +4,7 @@ import cylowess as _cl
 import scipy as _sp
 import scipy.stats as _sps
 import scipy.fftpack as _fft
+import scipy.signal as _spsig
 import scipy.optimize as _spo
 import scipy.integrate as _spi
 
@@ -26,6 +27,34 @@ def clean_series(pd_series):
     nanmask = _np.isnan(pd_series.values.astype(float))
     clean_data = pd_series.interpolate().fillna(method='bfill')
     return clean_data, nanmask
+
+
+def force_spacing(pd_series):
+
+    """
+    Interpolates input series between the smallest non-NaN index and largest
+    non-NaN index at uniform spacing.
+
+    This function is used to condition data that needs to be uniformly spaced
+    for various transforms (Fourier, etc). Endpoint NaNs are dropped and
+    linear interpolation is done between them. Endpoint NaNs cannot be
+    properly interpolated and back-filled or forward-filled data can cause
+    transform artifacts.
+
+    Accepts a pandas Series, returns a pandas Series of the same length.
+    """
+
+    data_length = len(pd_series)
+    data_indices = pd_series.dropna().index.values.astype(float)
+    data_points = pd_series.dropna().index.values.astype(float)
+
+    small_index = _np.min(data_indices)
+    big_index = _np.max(data_indices)
+    forced_indices = _np.linspace(small_index, big_index, data_length)
+
+    forced_data = _sp.interp(forced_indices, data_indices, data_points)
+
+    return _pd.Series(forced_data, index=forced_indices)
 
 
 def reject_outliers(data, deviation_tolerance=.6745):
@@ -231,7 +260,12 @@ def rolling_window(series, window_length=5, window='hanning',
 def correlate(series_a, series_b, as_series=False):
     clean_a = clean_series(series_a)[0]
     clean_b = clean_series(series_b)[0]
-    correlated = _sp.correlate(clean_a, clean_b, 'same')
+
+    index_values = clean_a.index.values.astype(float)
+    index_range = _np.max(index_values) - _np.min(index_values)
+    norm_factor = index_range / len(index_values)
+
+    correlated = norm_factor * _sp.correlate(clean_a, clean_b, 'same')
 
     if as_series is False:
         return correlated.values.astype(float)
@@ -329,6 +363,22 @@ def psd(series):
     """
 
     return absfft(series) ** 2
+
+
+def hilbert(pd_series):
+
+    data = force_spacing(pd_series)
+    return _spsig.hilbert(data)
+
+
+def h_amplitude(pd_series):
+
+    return (hilbert(pd_series) + pd_series).apply(_np.abs)
+
+
+def h_phase(pd_series):
+
+    return _np.unwrap(_np.angle(hilbert(pd_series)))
 
 
 def iintegrate(series, initial=0):

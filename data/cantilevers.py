@@ -16,7 +16,7 @@ def mode_gamma(mode_number):
 def flexf(cantilever_length, cantilever_width, cantilever_thickness,
           mode_number=1, e_modulus=169e9, density=2330):
 
-    area_moment = cantilever_width * (cantilever_thickness ** 3 / 3)
+    area_moment = cantilever_width * (cantilever_thickness ** 3 / 12)
     cross_section = cantilever_thickness * cantilever_width
 
     return _np.sqrt(((e_modulus * area_moment) / (4 * _np.pi ** 2 * density *
