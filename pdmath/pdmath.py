@@ -22,14 +22,25 @@ def clean_series(pd_series):
 
     Accepts a pandas Series, returns a pandas Series and boolean array with
     the same shape.
+
+    WARNING: Interpolation and backfilling of NaNs is limited to 5
+    consecutive data points. More missing data will result is NaNs being left
+    in an array, potentially causing errors.
+
+    Parameters
+    ----------
+    kwargs : keywords
+        Passed to pandas Series.interpolate method
     """
 
     nanmask = _np.isnan(pd_series.values.astype(float))
-    clean_data = pd_series.interpolate().fillna(method='bfill')
+    clean_data = pd_series.interpolate(method='slinear', limit=5)
+    clean_data = clean_data.fillna(method='bfill', limit=5)
+
     return clean_data, nanmask
 
 
-def force_spacing(pd_series):
+def force_spacing(pd_series, **kwargs):
 
     """
     Interpolates input series between the smallest non-NaN index and largest
@@ -44,6 +55,9 @@ def force_spacing(pd_series):
     Accepts a pandas Series, returns a pandas Series of the same length.
     """
 
+    if index_uniformity_of(pd_series) is True:
+        return clean_series(pd_series)[0]
+
     data_length = len(pd_series)
     data_indices = pd_series.dropna().index.values.astype(float)
     data_points = pd_series.dropna().index.values.astype(float)
@@ -55,6 +69,22 @@ def force_spacing(pd_series):
     forced_data = _sp.interp(forced_indices, data_indices, data_points)
 
     return _pd.Series(forced_data, index=forced_indices)
+
+
+def index_uniformity_of(pd_series):
+
+    """
+    Checks if the indices of a pandas Series is uniformly spaced.
+
+    Accepts a pandas Series, returns boolean True or False.
+    """
+
+    data_indices = pd_series.index.values.astype(float)
+    spacing = _np.diff(data_indices)
+    if all(spacing) == _np.mean(spacing):
+        return True
+    else:
+        return False
 
 
 def reject_outliers(data, deviation_tolerance=.6745):
@@ -258,6 +288,24 @@ def rolling_window(series, window_length=5, window='hanning',
 
 
 def correlate(series_a, series_b, as_series=False):
+
+    """
+    Performs a rolling cross-correlation on two pandas Series.
+
+    This is a pandas-specific wrapper for scipy.correlate. The pandas
+    Series are passed to "clean_series" before being passed to sp.correlate
+    to fill missing values. The output of correlate is the same length as the
+    shortest input array. "correlate" also has an optional "as_series" flag
+    to output a series with the rolling offset as the indices.
+
+    Accepts two pandas Series, outputs a numpy array or pandas Series.
+
+    Parameters
+    ----------
+    as_series : boolean, default False
+        Outputs a series with points of offset as the indices
+    """
+
     clean_a = clean_series(series_a)[0]
     clean_b = clean_series(series_b)[0]
 
@@ -277,6 +325,27 @@ def correlate(series_a, series_b, as_series=False):
 
 
 def corr_df(pd_dframe, reference=None, series_list=None):
+
+    """
+    Cross-correlates columns of a pandas DataFrame.
+
+    Calls the grumpy.pdmath.correlate function to cross-correlate columns
+    of the dataframe. With no keyword arguments passed to the function,
+    corr_df correlates adjacent columns based on their position in the
+    DataFrame.
+
+    If a reference column is passed, all other columns will be
+    cross-correlated against the reference column.
+
+    If a list of series is passed, only a subset of the DataFrame is used.
+
+    Parameters
+    ----------
+    reference : value, default None
+        A name to specificy a reference column.
+    series_list : list, default None
+        A list of names to specify a subset of the DataFrame columns.
+    """
 
     df = pd_dframe
     new_cols = []
@@ -328,8 +397,9 @@ def fft(series):
 
     output = _np.zeros(len(series)) + 0j
 
-    x_data = series.dropna().index.values.astype(float)
-    y_data = series.dropna().values.astype(float)
+    data = force_spacing(series)
+    x_data = data.index.values.astype(float)
+    y_data = data.values.astype(float)
 
     fft_length = _np.ceil(len(series) / 2)
     fft_spacing = _np.mean(_np.diff(x_data))
