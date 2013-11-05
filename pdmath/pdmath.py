@@ -34,13 +34,13 @@ def clean_series(pd_series):
     """
 
     nanmask = _np.isnan(pd_series.values.astype(float))
-    clean_data = pd_series.interpolate(method='slinear', limit=5)
-    clean_data = clean_data.fillna(method='bfill', limit=5)
+    clean_data = pd_series.interpolate(method='slinear')
+    clean_data = clean_data.fillna(method='bfill')
 
     return clean_data, nanmask
 
 
-def force_spacing(pd_series, **kwargs):
+def force_spacing(pd_series):
 
     """
     Interpolates input series between the smallest non-NaN index and largest
@@ -60,7 +60,7 @@ def force_spacing(pd_series, **kwargs):
 
     data_length = len(pd_series)
     data_indices = pd_series.dropna().index.values.astype(float)
-    data_points = pd_series.dropna().index.values.astype(float)
+    data_points = pd_series.dropna().values.astype(float)
 
     small_index = _np.min(data_indices)
     big_index = _np.max(data_indices)
@@ -81,7 +81,7 @@ def index_uniformity_of(pd_series):
 
     data_indices = pd_series.index.values.astype(float)
     spacing = _np.diff(data_indices)
-    if all(spacing) == _np.mean(spacing):
+    if all(spacing - _np.mean(spacing) < .01 * _np.mean(spacing)):
         return True
     else:
         return False
@@ -401,7 +401,7 @@ def fft(series):
     x_data = data.index.values.astype(float)
     y_data = data.values.astype(float)
 
-    fft_length = _np.ceil(len(series) / 2)
+    fft_length = _np.ceil(len(data) / 2)
     fft_spacing = _np.mean(_np.diff(x_data))
     fft_range = max(x_data) - min(x_data)
 
@@ -410,8 +410,7 @@ def fft(series):
     fft_mag[-fft_length:] = _np.nan
 
     output[:len(fft_mag)] = fft_mag
-    if len(fft_mag) is not len(output):
-        output[len(fft_mag):] = _np.nan
+    output[len(fft_mag):] = _np.nan
 
     return _pd.Series(_np.sqrt(2 * fft_range) / len(x_data)
                       * output, index=fft_freq)
@@ -441,12 +440,12 @@ def hilbert(pd_series):
     return _spsig.hilbert(data)
 
 
-def h_amplitude(pd_series):
+def hilbert_amplitude(pd_series):
 
     return (hilbert(pd_series) + pd_series).apply(_np.abs)
 
 
-def h_phase(pd_series):
+def hilbert_phase(pd_series):
 
     return _np.unwrap(_np.angle(hilbert(pd_series)))
 
@@ -509,7 +508,7 @@ def dintegrate(series, xmin=None, xmax=None, closed=True):
     if xmin is None:
         xmin = x_data[0]
     if xmax is None:
-        xmin = x_data[-1]
+        xmax = x_data[-1]
 
     if closed is True:
         sliced = raw[(x_data >= xmin) & (x_data <= xmax)]
@@ -525,7 +524,7 @@ def align_series(series_a, series_b):
     ccorr = correlate(series_a, series_b, as_series=True)
     offset = _np.min(ccorr.where(ccorr == ccorr.max()).dropna().index.values)
 
-    new_b = series_b.copy().shift(offset)
+    new_b = series_b.copy().shift(-offset)
 
     return new_b, offset
 
@@ -584,11 +583,11 @@ class FitObject():
         self.fitp = fitp
 
         if with_data is True:
-            self.data = _pd.DataFrame(series, columns=['Raw'])
-            self.data['Fitted Curve'] = self(series.index.values.
-                                             astype(float))
-            self.data['Residuals'] = _np.abs(self.data['Raw'] -
-                                             self.data['Fitted Curve'])
+            self.data = _pd.DataFrame(series, columns=['raw'])
+            self.data['fitted'] = self(series.index.values.
+                                       astype(float))
+            self.data['residuals'] = _np.abs(self.data['raw'] -
+                                             self.data['fitted'])
 
     def __call__(self, x_data):
         return self.fitfunc(x_data)

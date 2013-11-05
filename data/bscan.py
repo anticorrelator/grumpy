@@ -124,7 +124,7 @@ def reduce_bscan(data, b=None, f=None, t=None, temp=None,
     time = grouped[t].mean().unstack()
     files = grouped.file_index.mean().unstack()
     scatter = grouped[f].std().unstack()
-    avg_temp = _np.mean(_np.mean(grouped[temp].mean()))
+    temp = grouped[temp].mean().unstack()
 
     if robust is True:
         raw = grouped[f].apply(_gp.robust_mean, stdcutoff=stdcutoff*scatter
@@ -132,7 +132,7 @@ def reduce_bscan(data, b=None, f=None, t=None, temp=None,
     else:
         raw = grouped[f].mean().unstack()
 
-    return ReducedBScan(raw, scatter, time, files, avg_temp,
+    return ReducedBScan(raw, scatter, time, files, temp,
                         cantilever_object=cantilever_object)
 
 
@@ -257,11 +257,11 @@ class ReducedBScan:
             angle = 45
 
         theta = angle * _np.pi / 180
-        dia0 = _np.sin(theta) * dia
+        dia0 = _np.cos(theta) * dia
         delta = w * _np.cos(theta) + t * _np.sin(theta)
         phi0 = 6.62607e-34 / 1.60218e-19
-        return ((dia0 - delta) * (dia - w) / phi0,
-                (dia0 + delta) * (dia + w) / phi0)
+        return ((dia0 - delta) * (dia - w) * _np.cos(theta) / phi0,
+                (dia0 + delta) * (dia + w) * _np.cos(theta) / phi0)
 
     def _lowess_window(self, abperiod=None, window=5, **kwargs):
 
@@ -366,6 +366,7 @@ class ReducedBScan:
 
         self.scatter = self.scatter.filter(items=self.ramps)
         self.t = self.t.filter(items=self.ramps)
+        self.temp = self.temp.filter(items=self.ramps)
         self._files = self._files.filter(items=self.ramps)
         self.raw = self.raw.filter(items=self.ramps)
         return self
