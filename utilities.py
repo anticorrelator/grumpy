@@ -16,6 +16,16 @@ class Bunch:
     pass
 
 
+def iterfy(x):
+    if isinstance(x, str):
+        x = [x]
+    try:
+        iter(x)
+    except TypeError:
+        x = [x]
+    return x
+
+
 def strip_ends_from(pd_series, value_to_strip=None):
     if value_to_strip is None:
         bool_values = _np.isnan(pd_series)

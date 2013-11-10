@@ -129,10 +129,12 @@ def reduce_bscan(data, b=None, f=None, t=None, temp=None,
     if robust is True:
         raw = grouped[f].apply(_gp.robust_mean, stdcutoff=stdcutoff*scatter
                                .median().median(), **kwargs).unstack()
+        count = grouped[f].size().unstack()
     else:
         raw = grouped[f].mean().unstack()
+        count = grouped[f].size().unstack()
 
-    return ReducedBScan(raw, scatter, time, files, temp,
+    return ReducedBScan(raw, scatter, time, files, temp, count,
                         cantilever_object=cantilever_object)
 
 
@@ -179,12 +181,15 @@ class ReducedBScan:
         Instantiates another ReducedBScan object that is a copy of self
     """
 
-    def __init__(self, f, scatter, t, files, temp, cantilever_object=None):
+    def __init__(self, f, scatter, t, files, temp, count,
+                 cantilever_object=None):
         self.raw = f
         self.scatter = scatter
         self.t = t
-        self.temp = temp
+        self.temp = temp.values.mean()
+        self.thermometer = temp
         self._files = files
+        self.count = count
         self.ramps = self.raw.columns.values.astype('float')
 
         if cantilever_object is None:
@@ -366,8 +371,9 @@ class ReducedBScan:
 
         self.scatter = self.scatter.filter(items=self.ramps)
         self.t = self.t.filter(items=self.ramps)
-        self.temp = self.temp.filter(items=self.ramps)
+        self.thermometer = self.thermometer.filter(items=self.ramps)
         self._files = self._files.filter(items=self.ramps)
+        self.count = self.count.filter(items=self.ramps)
         self.raw = self.raw.filter(items=self.ramps)
         return self
 
@@ -467,6 +473,7 @@ class AggregatedBScan(ReducedBScan):
         self.t = parent_bscan.t
         self.temp = parent_bscan.temp
         self._files = parent_bscan._files
+        self.count = parent_bscan.count
         self.scatter = parent_bscan.scatter
         self.ramps = parent_bscan.ramps
         self.fullbackground = fullbackground
@@ -638,8 +645,6 @@ class AggregatedBScan(ReducedBScan):
 
         ab_range = self._ab_range(dia=dia, w=w, t=t, angle=angle)
 
-        ax.axvspan(2 * ab_range[0], 2 * ab_range[1], alpha=.4,
-                   color='yellow')
         ax.axvspan(ab_range[0], ab_range[1], alpha=.5, color='pink')
 
         _gp.rstyle(ax)

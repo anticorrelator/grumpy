@@ -143,6 +143,9 @@ def robust_mean(data, stdcutoff=None, **kwargs):
         The default value of .6745 will output the interquartile mean.
     """
 
+    if len(data) <= 2:
+        return _sps.nanmean(data)
+
     if stdcutoff is None:
         return _sps.nanmean(reject_outliers(data, **kwargs))
     else:
