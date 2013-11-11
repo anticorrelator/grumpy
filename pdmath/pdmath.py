@@ -1,4 +1,5 @@
 import numpy as _np
+import grumpy as _gp
 import pandas as _pd
 import cylowess as _cl
 import scipy as _sp
@@ -471,8 +472,7 @@ def iintegrate(series, initial=0):
         Sets the start value for indefinite integration
     """
 
-    nanmask = _np.isnan(series.sort_index().values.astype(float))
-    conditioned = series.sort_index().fillna(0)
+    conditioned, nanmask = clean_series(series.sort_index())
 
     x_data = conditioned.index.values.astype(float)
     y_data = conditioned.values.astype(float)
@@ -505,7 +505,7 @@ def dintegrate(series, xmin=None, xmax=None, closed=True):
         'xmin' and 'xmax'
     """
 
-    raw = series.sort_index()
+    raw = clean_series(_gp.strip_ends_from(series.sort_index()))[0]
     x_data = raw.index.values.astype(float)
 
     if xmin is None:
