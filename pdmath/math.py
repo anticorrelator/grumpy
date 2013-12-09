@@ -571,11 +571,11 @@ class FitFunction():
     def __init__(self, fitfunc):
         self.fitfunc = fitfunc
 
-    def __call__(self, p, x_data):
-        return self.fitfunc(p, _np.array(x_data))
+    def __call__(self, x_data, p):
+        return self.fitfunc(_np.array(x_data), *p)
 
     def fit(self, p0, series, with_data=True):
-        fitp = lsfit(self.fitfunc, p0, series)[0]
+        fitp = _spo.curve_fit(self.fitfunc, p0, series)[0]
         return FitObject(self.fitfunc, fitp, series, with_data)
 
 
@@ -596,11 +596,81 @@ class FitObject():
         return self.fitfunc(x_data)
 
 
-def lsfit(fitfunc, p0, series, **kwargs):
+def _plimit(func, pmin, pmax):
+    pmin = _np.array(pmin)
+    pmax = _np.array(pmax)
 
-    x_data = series.index.values.astype(float)
-    y_data = series.values.astype(float)
+    def limited(x, p):
+        p = _np.array(p)
+        output = _gp.iterfy(func(x, p))
 
-    errfunc = lambda p, x, y: fitfunc(p, x) - _np.ravel(y)
+        scale = _np.median(output) / len(output)
 
-    return _spo.leastsq(errfunc, p0, args=(x_data, y_data), **kwargs)
+        lower = pmin - p
+        upper = p - pmax
+
+        lower[lower < 0] = 0
+        upper[upper < 0] = 0
+
+        output = output * scale * (_np.prod(_np.exp(lower)) +
+                                   _np.prod(_np.exp(upper)))
+
+    return limited
+
+
+def _general_function(params, xdata, ydata, function):
+    return function(xdata, *params) - ydata
+
+
+def _weighted_general_function(params, xdata, ydata, function, weights):
+    return weights * (function(xdata, *params) - ydata)
+
+
+def curve_fit(f, pd_series, p0=None, sigma=None, **kw):
+    """
+    """
+
+    xdata = pd_series.index.values.astype(float)
+    ydata = pd_series.values.astype(float)
+
+    if p0 is None:
+        # determine number of parameters by inspecting the function
+        import inspect
+        args, varargs, varkw, defaults = inspect.getargspec(f)
+        if len(args) < 2:
+            msg = "Unable to determine number of fit parameters."
+            raise ValueError(msg)
+        if 'self' in args:
+            p0 = [1.0] * (len(args)-2)
+        else:
+            p0 = [1.0] * (len(args)-1)
+
+    if _np.isscalar(p0):
+        p0 = _np.array([p0])
+
+    args = (xdata, ydata, f)
+    if sigma is None:
+        func = _general_function
+    else:
+        func = _weighted_general_function
+        args += (1.0/_np.asarray(sigma),)
+
+    # Remove full_output from kw, otherwise we're passing it in twice.
+    return_full = kw.pop('full_output', False)
+    res = _spo.leastsq(func, p0, args=args, full_output=1, **kw)
+    (popt, pcov, infodict, errmsg, ier) = res
+
+    if ier not in [1, 2, 3, 4]:
+        msg = "Optimal parameters not found: " + errmsg
+        raise RuntimeError(msg)
+
+    if (len(ydata) > len(p0)) and pcov is not None:
+        s_sq = (func(popt, *args)**2).sum()/(len(ydata)-len(p0))
+        pcov = pcov * s_sq
+    else:
+        pcov = _np.inf
+
+    if return_full:
+        return popt, pcov, infodict, errmsg, ier
+    else:
+        return popt, pcov
