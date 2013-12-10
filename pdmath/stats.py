@@ -22,13 +22,13 @@ def block_bootstrap(pd_series, size, blocks=None):
         samplings = _np.reshape(raw[:(blocks * size)], (blocks, size))
 
     elif blocks is 'all':
-        samplings = _np.array([raw[start:(start + size)]
-                              for start in range(len(raw) - size)])
+        samplings = _np.array([raw[stpt:(stpt + size)]
+                              for stpt in range(len(raw) - size)])
 
     elif type(blocks) is int:
         from random import sample as _rs
         starts = _rs(range(len(raw) - size), blocks)
-        samplings = _np.array([raw[start:(start + size)]
-                              for start in starts])
+        samplings = _np.array([raw[stpt:(stpt + size)]
+                              for stpt in starts])
 
     return samplings

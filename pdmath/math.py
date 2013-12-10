@@ -205,7 +205,7 @@ def lowess(series, frac=.5, delta=None, it=None):
             when estimating each y-value.
     it : int, default 3
             The number of residual-based reweightings
-            to perform.
+            to perform. These are expensive but robusitfy the regression.
     delta : float, default 1 percent of range(x_data)
             Distance within which to use linear-interpolation
             instead of weighted regression.
