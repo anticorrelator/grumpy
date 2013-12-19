@@ -13,7 +13,7 @@ Scatterplots". Journal of the American Statistical Association
 import numpy as np
 
 
-def loess(endog, exog, frac=2./3, it=3):
+def _loess(endog, exog, frac=.5, it=3):
     """
     LOWESS (Locally Weighted Scatterplot Smoothing)
 

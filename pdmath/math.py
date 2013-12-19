@@ -24,10 +24,6 @@ def clean_series(pd_series):
     Accepts a pandas Series, returns a pandas Series and boolean array with
     the same shape.
 
-    WARNING: Interpolation and backfilling of NaNs is limited to 5
-    consecutive data points. More missing data will result is NaNs being left
-    in an array, potentially causing errors.
-
     Parameters
     ----------
     kwargs : keywords
@@ -88,7 +84,25 @@ def index_uniformity_of(pd_series):
         return False
 
 
-def reject_outliers(data, deviation_tolerance=.6745):
+def demedian(data, axis=None):
+
+    ds = data.astype(float).copy()
+
+    if data.ndim > 2:
+        dim_msg = 'Expected 2 or fewer dimensions'
+        raise TypeError(dim_msg)
+
+    if axis is None:
+        demedianed = ds - _np.median(ds, axis=axis)
+    elif axis == 0:
+        demedianed = _np.array([x - _np.median(x) for x in ds.T]).T
+    elif axis == 1:
+        demedianed = _np.array([x - _np.median(x) for x in ds])
+
+    return demedianed
+
+
+def reject_outliers(data, reject=.5, axis=None):
 
     """
     Replaces outliers in a numpy array with NaN.
@@ -109,20 +123,52 @@ def reject_outliers(data, deviation_tolerance=.6745):
 
     Parameters
     ----------
-    deviation_tolerance : value, default .6745
-        deviation_tolerance sets the threshold for whether an element from
-        the input vector is removed by the outlier rejection. The default
-        value is equivalent to selecting only the interquartile range.
+    reject : value between 0 and 1, default .5
+        reject sets the percentage of data to be rejected. (reject=.5)
+        rejection strength implies that the largest and smallest 25%
+        of data is rejected.
     """
 
-    data = data.astype('float')
-    distance = _np.abs(data - _np.median(data))
-    sigma = _np.median(distance) / .6745
-    data[distance > deviation_tolerance * sigma] = _np.nan
-    return data
+    ds = _np.array(data.astype(float).copy())
+
+    if axis is None:
+        axis = 0
+
+    if ds.ndim > 2:
+        dim_msg = 'Expected 2 or fewer dimensions'
+        raise TypeError(dim_msg)
+    if axis > ds.ndim:
+        ax_msg = 'axis out of bounds'
+        raise ValueError(ax_msg)
+    if (reject < 0) or (reject > 1):
+        r_msg = 'reject parameter must be between 0 and 1'
+        raise ValueError(r_msg)
+
+    dlen = _np.shape(ds)[axis]
+    thresh = _np.floor(dlen * reject / 2)
+
+    if thresh == 0:
+        thresh += 1
+    if thresh == dlen / 2:
+        thresh -= 1
+
+    rank = _np.argsort(ds, axis=axis)
+
+    if ds.ndim is 1:
+        ds[rank[-thresh:]] = _np.nan
+        ds[rank[:thresh]] = _np.nan
+    elif axis == 0:
+        for x, r in zip(ds.T, rank.T):
+            x[r[-thresh:]] = _np.nan
+            x[r[:thresh]] = _np.nan
+    if axis == 1:
+        for x, r in zip(ds, rank):
+            x[r[-thresh:]] = _np.nan
+            x[r[:thresh]] = _np.nan
+    return ds
 
 
-def robust_mean(data, stdcutoff=None, **kwargs):
+def robust_mean(data, reject=.5, stdcutoff=None, axis=None):
 
     """
     Robustified mean. Rejects outliers before taking mean. Ignores NaNs.
@@ -144,16 +190,18 @@ def robust_mean(data, stdcutoff=None, **kwargs):
         The default value of .6745 will output the interquartile mean.
     """
 
+    rejected = reject_outliers(data, reject=reject, axis=axis)
+
     if len(data) <= 2:
-        return _sps.nanmean(data)
+        return _sps.nanmean(data, axis=axis)
 
     if stdcutoff is None:
-        return _sps.nanmean(reject_outliers(data, **kwargs))
+        return _sps.nanmean(rejected, axis=axis)
     else:
         if _np.std(data) < stdcutoff:
-            return _sps.nanmean(data)
+            return _sps.nanmean(data, axis=axis)
         else:
-            return _sps.nanmean(reject_outliers(data, **kwargs))
+            return _sps.nanmean(rejected, axis=axis)
 
 
 def polysmooth(series, order=5):
@@ -223,6 +271,22 @@ def lowess(series, frac=.5, delta=None, it=None):
         delta = .01 * (max(x_data) - min(x_data))
 
     smooth = _cl.lowess(y_data, x_data, frac=frac, it=it, delta=delta)
+    output[~nanmask] = smooth[:, 1]
+    return output
+
+
+def loess(series, frac=.5, it=None):
+
+    output = _np.empty(series.shape)
+    output[:] = _np.nan
+    nanmask = _np.isnan(series.values.astype(float))
+    x_data = series.dropna().index.values.astype(float)
+    y_data = series.dropna().values.astype(float)
+
+    if it is None:
+        it = 3
+
+    smooth = _gp._loess(y_data, x_data, frac=frac, it=it)
     output[~nanmask] = smooth[:, 1]
     return output
 
