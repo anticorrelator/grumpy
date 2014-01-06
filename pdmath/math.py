@@ -3,6 +3,7 @@ import grumpy as _gp
 import pandas as _pd
 import cylowess as _cl
 import scipy as _sp
+import bottleneck as _bn
 import scipy.stats as _sps
 import scipy.fftpack as _fft
 import scipy.signal as _spsig
@@ -85,7 +86,20 @@ def index_uniformity_of(pd_series):
 
 
 def demedian(data, axis=None):
+    """
+    Subtracts the median from a dataset.
 
+    Parameters
+    ----------
+    data : array-like
+        Input array. Must have dimension 2 or less.
+    axis : int, optional, default (ndim - 1)
+        applies DEMEDIAN along a specific axis. Must be either 0 or 1.
+
+    Returns
+    -------
+    ds : numpy array of the same dimension as "data"
+    """
     ds = data.astype(float).copy()
 
     if data.ndim > 2:
@@ -93,6 +107,9 @@ def demedian(data, axis=None):
         raise TypeError(dim_msg)
 
     if axis is None:
+        axis = ds.ndim - 1
+
+    if ds.ndim == 1:
         demedianed = ds - _np.median(ds, axis=axis)
     elif axis == 0:
         demedianed = _np.array([x - _np.median(x) for x in ds.T]).T
@@ -102,31 +119,30 @@ def demedian(data, axis=None):
     return demedianed
 
 
-def reject_outliers(data, reject=.5, axis=None):
+def trim(data, reject=.5, axis=None):
 
     """
-    Replaces outliers in a numpy array with NaN.
+    Replaces extremal values in a numpy array or list with NaN.
 
-    Checks for outliers by comparing the distance of each element in the
-    input array from the median value of the input array. The median of
-    these distances is the interquartile range (IQR).
-
-    If the distance of a point in the input array from the median is larger
-    than some specified multiple of the IQR, the point is discarded and
-    replaced is NaN. The multiple can be controlled using the
-    deviation_tolerance parameter, the threshold for discarding outliers is
-    deviation_tolerance / .6745. The numeric factor normalizes the IQR such
-    that a deviation_tolerance of 1 is equivalent to 1 standard deviation
-    for gaussian input data.
-
-    Accepts numpy array, returns numpy array of the same length.
+    Sorts data and removes largest and smallest values. Percentage of
+    original dataset removed determined by "reject" parameter. TRIM will not
+    remove all data if reject approaches 1. The default "reject" paramter .5
+    returns values within the inter-quartile range (IQR).
 
     Parameters
     ----------
-    reject : value between 0 and 1, default .5
-        reject sets the percentage of data to be rejected. (reject=.5)
+    data : array-like
+        Input array. Must have dimension 2 or less.
+    reject : value between 0 and 1, optional, default .5
+        sets the percentage of data to be rejected. (reject=.5)
         rejection strength implies that the largest and smallest 25%
         of data is rejected.
+    axis : int, optional, default (ndim - 1)
+        applies TRIM along a specific axis. Must be either 0 or 1.
+
+    Returns
+    -------
+    ds : numpy array of the same dimension as "data"
     """
 
     ds = _np.array(data.astype(float).copy())
@@ -161,39 +177,96 @@ def reject_outliers(data, reject=.5, axis=None):
         for x, r in zip(ds.T, rank.T):
             x[r[-thresh:]] = _np.nan
             x[r[:thresh]] = _np.nan
-    if axis == 1:
+    elif axis == 1:
         for x, r in zip(ds, rank):
             x[r[-thresh:]] = _np.nan
             x[r[:thresh]] = _np.nan
     return ds
 
 
-def robust_mean(data, reject=.5, stdcutoff=None, axis=None):
+def reject_outliers(data, reject=.5, axis=None):
 
     """
-    Robustified mean. Rejects outliers before taking mean. Ignores NaNs.
+    Replaces outliers in a numpy array with NaN.
 
-    Significant speedup when utilizing the "stdcutoff" argument.
-
-    Accepts numpy array, returns value.
+    Checks for outliers by comparing the distance of each element in the
+    input array from the median value of the input array. For symmetric
+    distributions, the default "reject" parameter returns the values within
+    the inter-quartile range (IQR).
 
     Parameters
     ----------
-    stdcutoff : value, default None
-        stdcutoff is compared to the std. dev. of input data. Explicit
-        outlier rejection only occurs if this test fails. 10x+ speedup.
+    data : array-like
+        Input data. Must be dimension 2 or less.
+    reject : value between 0 and 1, optional, default .5
+        "reject" sets the percentage of data to be rejected.
+    axis : int, optional, default (ndim - 1)
+        Applies REJECT_OUTLIERS along a specific axis. Must be either 0 or 1.
 
-    **kwargs passed to reject_outliers
-    deviation_tolerance : value, default .6745
-        Threshold for outlier rejection normalized such that 1 is
-        equivalent to the 1 standard deviation for gaussian input data.
-        The default value of .6745 will output the interquartile mean.
+    Returns
+    -------
+    ds : numpy array of the same dimension as "data"
     """
 
-    rejected = reject_outliers(data, reject=reject, axis=axis)
+    ds = _np.array(data.astype(float).copy())
 
-    if len(data) <= 2:
-        return _sps.nanmean(data, axis=axis)
+    if axis is None:
+        axis = ds.ndim - 1
+
+    if ds.ndim > 2:
+        dim_msg = 'Expected 2 or fewer dimensions'
+        raise TypeError(dim_msg)
+    if axis > ds.ndim:
+        ax_msg = 'axis out of bounds'
+        raise ValueError(ax_msg)
+    if (reject < 0) or (reject > 1):
+        r_msg = 'reject parameter must be between 0 and 1'
+        raise ValueError(r_msg)
+
+    dlen = _np.shape(ds)[axis]
+    thresh = _np.floor(dlen * reject)
+
+    if thresh == 0:
+        thresh += 1
+    if thresh == dlen:
+        thresh -= 1
+
+    rank = _np.argsort(_np.abs(demedian(ds, axis=axis)), axis=axis)
+
+    if ds.ndim is 1:
+        ds[rank[-thresh:]] = _np.nan
+    elif axis == 0:
+        for x, r in zip(ds.T, rank.T):
+            x[r[-thresh:]] = _np.nan
+    elif axis == 1:
+        for x, r in zip(ds, rank):
+            x[r[-thresh:]] = _np.nan
+    return ds
+
+
+def robust_mean(data, reject=.5, method='trim', stdcutoff=None, axis=None):
+
+    """
+    Robustified mean. Rejects outliers using "method" before taking mean.
+    Ignores NaNs.
+
+    ROBUST_MEAN will skip outlier rejection of std(data) exceeds the optional
+    "stdcutoff" argument. This can significantly speed up loops that call
+    ROBUST_MEAN multiple times.
+
+    Parameters
+    ----------
+    data : array-like
+    reject : float, optional, default .5
+    method : string, optional, default 'trim'
+    stdcutoff : float, optional, default None
+    axis : int, optional, default (ndim - 1)
+    """
+
+    if method == "trim":
+        rejected = trim(data, reject=reject, axis=axis)
+    elif method == "reject_outliers":
+        rejected = reject_outliers(data, reject=reject, axis=axis)
 
     if stdcutoff is None:
         return _sps.nanmean(rejected, axis=axis)
@@ -664,20 +737,30 @@ def _plimit(func, pmin, pmax):
     pmin = _np.array(pmin)
     pmax = _np.array(pmax)
 
-    def limited(x, p):
-        p = _np.array(p)
-        output = _gp.iterfy(func(x, p))
+    def limited(x, *p):
+        parray = _np.array(p)
+        output = _gp.iterfy(func(x, *p))
 
-        scale = _np.median(output) / len(output)
+        scale = []
 
-        lower = pmin - p
-        upper = p - pmax
+        for index, params in enumerate(p):
+            pcopy = parray.copy()
+            pcopy[index] += .1
+            dout = func(x, *tuple(pcopy))
+            diff = _np.sum(_np.abs((output - dout) / (len(output) * output)))
+
+            scale.append(1 / diff)
+
+        lower = pmin - parray
+        upper = parray - pmax
 
         lower[lower < 0] = 0
         upper[upper < 0] = 0
 
-        output = output * scale * (_np.prod(_np.exp(lower)) +
-                                   _np.prod(_np.exp(upper)))
+        output = output * (_np.prod(_np.exp(scale * lower)) *
+                           _np.prod(_np.exp(scale * upper)))
+
+        return output
 
     return limited
 
@@ -690,7 +773,7 @@ def _weighted_general_function(params, xdata, ydata, function, weights):
     return weights * (function(xdata, *params) - ydata)
 
 
-def curve_fit(f, pd_series, p0=None, sigma=None, **kw):
+def curve_fit(f, pd_series, p0=None, pmin=None, pmax=None, sigma=None, **kw):
     """
     """
 
@@ -711,6 +794,27 @@ def curve_fit(f, pd_series, p0=None, sigma=None, **kw):
 
     if _np.isscalar(p0):
         p0 = _np.array([p0])
+    else:
+        p0 = _np.array(p0)
+
+    if (pmin is None) & (pmax is None):
+        f = f
+    else:
+        if pmin is None:
+            pmin = _np.array([-_np.inf] * len(p0))
+            pmax = _np.array(pmax)
+            p0[p0 > pmax] = pmax[p0 > pmax]
+        elif pmax is None:
+            pmax = _np.array([_np.inf] * len(p0))
+            pmin = _np.array(pmin)
+            p0[p0 < pmin] = pmin[p0 < pmin]
+            print(p0)
+        else:
+            pmin = _np.array(pmin)
+            pmax = _np.array(pmax)
+            p0[p0 > pmax] = (pmax[p0 > pmax] + pmin[p0 > pmax]) / 2
+            p0[p0 < pmin] = (pmax[p0 < pmin] + pmin[p0 < pmin]) / 2
+        f = _plimit(f, pmin, pmax)
 
     args = (xdata, ydata, f)
     if sigma is None:
