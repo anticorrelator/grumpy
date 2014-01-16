@@ -186,11 +186,17 @@ class SmoothedBScan(RawBScan):
         self.std = self.std.filter(items=ramp_list)
         self._to_current(self.df)
 
-    def drop_data(self, column, bmin, bmax):
-        self.df = self.df[column].where((self.df.index > bmin) &
-                                        (self.df.index < bmax))
-        self.std = self.std[column].where((self.std.index > bmin) &
-                                          (self.std.index < bmax))
+    def drop_data(self, column, bmin=None, bmax=None):
+
+        if bmin is None:
+            bmin = -_np.inf
+        if bmax is None:
+            bmax = _np.inf
+
+        self.df[column] = self.df[column].where((self.df.index > bmin) &
+                                                (self.df.index < bmax))
+        self.std[column] = self.std[column].where((self.std.index > bmin) &
+                                                  (self.std.index < bmax))
 
         self._to_current(self.df)
 
