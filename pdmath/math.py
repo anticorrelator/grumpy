@@ -277,6 +277,20 @@ def robust_mean(data, reject=.5, method='trim', stdcutoff=None, axis=None):
             return _sps.nanmean(rejected, axis=axis)
 
 
+def g_mean(data, axis=None):
+
+    data = _np.array(data).copy()
+    if any(data <= 0):
+        pos_msg = 'Geometric mean is only defined for positive arguments.'
+        raise ValueError(pos_msg)
+
+    if axis is None:
+        numel = _np.prod(data.shape)
+    else:
+        numel = data.shape[axis]
+    return _np.prod(data, axis=axis) ** (1 / numel)
+
+
 def polysmooth(series, order=5):
 
     """
