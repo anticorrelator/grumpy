@@ -5,8 +5,9 @@ import scipy.stats as _sps
 import pickle as p
 
 
-def join_bscans(df_iter):
-    df_iter = _gp.iterfy(df_iter)
+def join_bscans(file_iter):
+    file_iter = _gp.iterfy(file_iter)
+    df_iter = [_pd.read_table(dfile, index_col='time') for dfile in file_iter]
 
     ramp_count = [len(df.ramp_index.unique()) for df in df_iter[:-1]]
     cumulative_counts = _np.cumsum(ramp_count)
@@ -124,6 +125,7 @@ class SmoothedBScan(RawBScan):
         self.data['smoothed'] = self.data.cantilever_frequency - background
         self.data['background'] = background
         self._b = self.data.b_field.interpolate(method='slinear')
+        self._step = step
 
         self.bin(step)
 
@@ -170,6 +172,26 @@ class SmoothedBScan(RawBScan):
 
         self.df = bunched.smoothed.apply(method, **kwargs).unstack()
         self.std = bunched.smoothed.apply(_sps.nanstd).unstack()
+        self._to_current(self.df)
+
+    def drop_ramps(self, ramps_to_drop):
+        ramps_to_drop = _gp.iterfy(ramps_to_drop)
+        ramp_list = self.df.columns
+
+        ramp_mask = _np.array([any(_np.array(ramps_to_drop) == ramp)
+                              for ramp in ramp_list])
+        ramp_list = ramp_list[~ramp_mask]
+
+        self.df = self.df.filter(items=ramp_list)
+        self.std = self.std.filter(items=ramp_list)
+        self._to_current(self.df)
+
+    def drop_data(self, column, bmin, bmax):
+        self.df = self.df[column].where((self.df.index > bmin) &
+                                        (self.df.index < bmax))
+        self.std = self.std[column].where((self.std.index > bmin) &
+                                          (self.std.index < bmax))
+
         self._to_current(self.df)
 
     def psd(self):
