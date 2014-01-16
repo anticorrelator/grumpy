@@ -2,7 +2,7 @@ import numpy as _np
 import grumpy as _gp
 import pandas as _pd
 import scipy.stats as _sps
-import pickle as p
+import pickle as _p
 
 
 def join_bscans(file_iter):
@@ -12,8 +12,8 @@ def join_bscans(file_iter):
     ramp_count = [len(df.ramp_index.unique()) for df in df_iter[:-1]]
     cumulative_counts = _np.cumsum(ramp_count)
 
-    for count in cumulative_counts:
-        df_iter[1:].ramp_index += count
+    for index, df in enumerate(df_iter[1:]):
+        df.ramp_index += cumulative_counts[index]
 
     return RawBScan(_pd.concat(df_iter))
 
@@ -120,14 +120,14 @@ class RawBScan():
 
 
 class SmoothedBScan(RawBScan):
-    def __init__(self, oldbscan, background, step):
+    def __init__(self, oldbscan, background, step, **kwargs):
         super().__init__(oldbscan.data, oldbscan.cantilever)
         self.data['smoothed'] = self.data.cantilever_frequency - background
         self.data['background'] = background
         self._b = self.data.b_field.interpolate(method='slinear')
         self._step = step
 
-        self.bin(step)
+        self.bin(step, **kwargs)
 
     def _sensitivity_factor(self):
         angle = self.cantilever.angle
@@ -147,7 +147,7 @@ class SmoothedBScan(RawBScan):
     def _pc_integration_factor(self, harmonic=1):
         return (2 * _np.pi * _gp.g_mean(harmonic * self._ab_range())) ** -1
 
-    def _to_current(self, df, sensitivity=None):
+    def _to_current(self, df, harmonic=1, sensitivity=None):
 
         if sensitivity is None:
             sensitivity = self._sensitivity_factor()
@@ -155,24 +155,30 @@ class SmoothedBScan(RawBScan):
         b = df.index.values.astype(float)
 
         self.di = df.apply(lambda x: x / (sensitivity * b ** 2))
-        self.pc = self.di * self._pc_integration_factor()
+        self.pc = self.di * self._pc_integration_factor(harmonic=harmonic)
         self.ab = self.pc.apply(_np.mean, axis=1)
 
-    def bin(self, step):
+    def bin(self, step, harmonic=1, **kwargs):
         self.data['b_field'] = step * _np.floor(self._b / step) + (step / 2)
         bunched = self.data.groupby(['b_field', 'ramp_index'])
 
-        self.df = bunched.smoothed.apply(_gp.robust_mean).unstack()
+        self.df = bunched.smoothed.apply(_gp.robust_mean, **kwargs).unstack()
         self.std = bunched.smoothed.apply(_sps.nanstd).unstack()
-        self._to_current(self.df)
+        self.thermometer_c = bunched.thermometer_c.apply(_np.mean).unstack()
+        self.thermometer_d = bunched.thermometer_d.apply(_np.mean).unstack()
+        self.lockin_r = bunched.lockin_r.apply(_np.mean).unstack()
+        self._to_current(self.df, harmonic=harmonic)
 
-    def bin_with(self, step, method, **kwargs):
+    def bin_with(self, step, method, harmonic=1, **kwargs):
         self.data['b_field'] = step * _np.floor(self._b / step) + (step / 2)
         bunched = self.data.groupby(['b_field', 'ramp_index'])
 
         self.df = bunched.smoothed.apply(method, **kwargs).unstack()
         self.std = bunched.smoothed.apply(_sps.nanstd).unstack()
-        self._to_current(self.df)
+        self.thermometer_c = bunched.thermometer_c.apply(_np.mean).unstack()
+        self.thermometer_d = bunched.thermometer_d.apply(_np.mean).unstack()
+        self.lockin_r = bunched.lockin_r.apply(_np.mean).unstack()
+        self._to_current(self.df, harmonic=harmonic)
 
     def drop_ramps(self, ramps_to_drop):
         ramps_to_drop = _gp.iterfy(ramps_to_drop)
@@ -206,5 +212,38 @@ class SmoothedBScan(RawBScan):
     def fft(self):
         return _gp.absfft(self.ab)
 
-    def save(self):
-        return
+    def save(self, targetfile):
+        import os.path.isfile as _isfile
+        if _isfile(targetfile):
+            _p.dump(BScan(self), open(targetfile, 'wb'))
+        else:
+            _p.dump(BScan(self), open(targetfile, 'xb'))
+
+
+class BScan():
+    def __init__(self, smoothed):
+
+        self.df = smoothed.df
+        self.di = smoothed.di
+
+        smoothed._to_current(smoothed.df, harmonic=1)
+        self.pc = smoothed.pc
+        self.ab = smoothed.ab
+
+        smoothed._to_current(smoothed.df, harmonic=2)
+        self.pc2 = smoothed.pc
+        self.ab2 = smoothed.ab
+
+        self.std = smoothed.std
+        self.temp = smoothed.temp
+        self.ab_range = smoothed._ab_range()
+
+        self.thermometer_c = smoothed.thermometer_c
+        self.thermometer_d = smoothed.thermometer_d
+        self.lockin_r = smoothed.lockin_r
+
+    def psd(self):
+        return _gp.psd(self.ab)
+
+    def fft(self):
+        return _gp.absfft(self.ab)
