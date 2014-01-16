@@ -193,10 +193,10 @@ class SmoothedBScan(RawBScan):
         if bmax is None:
             bmax = _np.inf
 
-        self.df[column] = self.df[column].where((self.df.index > bmin) &
-                                                (self.df.index < bmax))
-        self.std[column] = self.std[column].where((self.std.index > bmin) &
-                                                  (self.std.index < bmax))
+        self.df[column] = self.df[column].where(~((self.df.index > bmin) &
+                                                (self.df.index < bmax)))
+        self.std[column] = self.std[column].where(~((self.std.index > bmin) &
+                                                  (self.std.index < bmax)))
 
         self._to_current(self.df)
 
