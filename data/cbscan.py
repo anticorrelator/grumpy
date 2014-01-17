@@ -98,7 +98,7 @@ class RawBScan():
         else:
             return frac
 
-    def smooth_bscan(self, abperiod=None, window=5, step=.005):
+    def smooth_bscan(self, abperiod=None, window=5, step=.005, **kwargs):
 
         if abperiod is None:
             abperiod = _gp.g_mean(self._ab_range()) ** -1
@@ -116,7 +116,7 @@ class RawBScan():
                               frac=frac))
 
         background = _np.hstack(background)
-        return SmoothedBScan(self, background, step)
+        return SmoothedBScan(self, background, step, **kwargs)
 
 
 class SmoothedBScan(RawBScan):
