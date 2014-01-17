@@ -81,8 +81,8 @@ class RawBScan():
         dia0 = _np.cos(theta) * dia
         delta = w * _np.cos(theta) + t * _np.sin(theta)
         phi0 = 6.62607e-34 / 1.60218e-19
-        return ((dia0 - delta) * (dia - w) * _np.cos(theta) / phi0,
-                (dia0 + delta) * (dia + w) * _np.cos(theta) / phi0)
+        return [(dia0 - delta) * (dia - w) * _np.cos(theta) / phi0,
+                (dia0 + delta) * (dia + w) * _np.cos(theta) / phi0]
 
     def _lowess_window(self, abperiod=None, window=5, **kwargs):
 
@@ -101,7 +101,7 @@ class RawBScan():
     def smooth_bscan(self, abperiod=None, window=5, step=.005):
 
         if abperiod is None:
-            abperiod = _np.mean(self._ab_range()) ** -1
+            abperiod = _gp.g_mean(self._ab_range()) ** -1
 
         ramps = self.data.ramp_index.unique()
         background = []
@@ -213,8 +213,8 @@ class SmoothedBScan(RawBScan):
         return _gp.absfft(self.ab)
 
     def save(self, targetfile):
-        import os.path.isfile as _isfile
-        if _isfile(targetfile):
+        import os as _os
+        if _os.path.isfile(targetfile):
             _p.dump(BScan(self), open(targetfile, 'wb'))
         else:
             _p.dump(BScan(self), open(targetfile, 'xb'))
@@ -237,6 +237,7 @@ class BScan():
         self.std = smoothed.std
         self.temp = smoothed.temp
         self.ab_range = smoothed._ab_range()
+        self.ab_range2 = [2 * x for x in self.ab_range]
 
         self.thermometer_c = smoothed.thermometer_c
         self.thermometer_d = smoothed.thermometer_d
@@ -247,3 +248,31 @@ class BScan():
 
     def fft(self):
         return _gp.absfft(self.ab)
+
+    def plot_psd(self):
+        ax = self.psd().plot()
+        r1 = self.ab_range
+        c1 = _gp.g_mean(r1)
+        s1 = r1[1] - r1[0]
+        r2 = self.ab_range2
+        s2 = r2[1] - r2[0]
+        c2 = _gp.g_mean(r2)
+
+        ax.axvspan(r1[0], r1[1], color='pink', alpha=.3)
+        ax.axvspan(r2[0], r2[1], color='yellow', alpha=.3)
+        ax.axvspan(c1 - .2 * s1, c1 + .2 * s1, color='red', alpha=.2)
+        ax.axvspan(c2 - .2 * s2, c2 + .2 * s2, color='orange', alpha=.2)
+
+    def plot_fft(self):
+        ax = self.fft().plot()
+        r1 = self.ab_range
+        c1 = _gp.g_mean(r1)
+        s1 = r1[1] - r1[0]
+        r2 = self.ab_range2
+        s2 = r2[1] - r2[0]
+        c2 = _gp.g_mean(r2)
+
+        ax.axvspan(r1[0], r1[1], color='pink', alpha=.3)
+        ax.axvspan(r2[0], r2[1], color='yellow', alpha=.3)
+        ax.axvspan(c1 - .2 * s1, c1 + .2 * s1, color='red', alpha=.2)
+        ax.axvspan(c2 - .2 * s2, c2 + .2 * s2, color='orange', alpha=.2)
