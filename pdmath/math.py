@@ -822,7 +822,6 @@ def curve_fit(f, pd_series, p0=None, pmin=None, pmax=None, sigma=None, **kw):
             pmax = _np.array([_np.inf] * len(p0))
             pmin = _np.array(pmin)
             p0[p0 < pmin] = pmin[p0 < pmin]
-            print(p0)
         else:
             pmin = _np.array(pmin)
             pmax = _np.array(pmax)

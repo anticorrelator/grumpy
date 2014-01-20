@@ -23,8 +23,15 @@ def b_m():
     return 0
 
 
-def e_perp():
-    return np.pi / 2 * (b_m() ** 2 * wr * tr * lr ** 2) / \
+def e_perp(r_width=None, r_thick=None, r_len=None):
+    if r_width is None:
+        r_width = wr
+    if r_thick is None:
+        r_thick = tr
+    if r_len is None:
+        r_len = lr
+
+    return np.pi / 2 * (b_m() ** 2 * r_width * r_thick * r_len ** 2) / \
         ((2 * np.pi * hbar / ee) ** 2)
 
 
@@ -32,8 +39,10 @@ def Tp(p, ec):
     return 10.4 * ec / (p ** 2 * kb)
 
 
-def ec(diffc):
-    return hbar * diffc / lr ** 2
+def ec(diffc, r_len=None):
+    if r_len is None:
+        r_len = lr
+    return hbar * diffc / r_len ** 2
 
 
 def ez(bmin, bmax):
@@ -69,20 +78,22 @@ def gd(x, y):
     return np.sum(integrand_values, axis=1) * range_spacing
 
 
-def pcmag(p, bmin, bmax, diffc, lso, temp):
+def pcmag(p, bmin, bmax, diffc, lso, temp, r_width=None, r_thick=None,
+          r_len=None):
 
-    Ec = ec(diffc)
+    Ec = ec(diffc, r_len)
+    Eperp = e_perp(r_width, r_thick, r_len)
     Eso = eso(diffc, lso)
     Ez = ez(bmin, bmax)
 
     tscale = 20.8 * np.array(temp) / Tp(p, Ec)
 
-    tfactor = gd(p ** 2 * e_perp(), tscale)
-    sofactor = gd(p ** 2 * (e_perp() + 4/3 * Eso / Ec), tscale)
+    tfactor = gd(p ** 2 * Eperp, tscale)
+    sofactor = gd(p ** 2 * (Eperp + 4/3 * Eso / Ec), tscale)
 
-    magfactor1 = gd(p ** 2 * (e_perp() + 4/3 * Eso / Ec -
+    magfactor1 = gd(p ** 2 * (Eperp + 4/3 * Eso / Ec -
                     2j * Ez / Ec), tscale)
-    magfactor2 = gd(p ** 2 * (e_perp() + 4/3 * Eso / Ec +
+    magfactor2 = gd(p ** 2 * (Eperp + 4/3 * Eso / Ec +
                     2j * Ez / Ec), tscale)
 
     pc = i_typ(p, Ec) * (1 / np.sqrt(2)) * np.sqrt(tfactor + sofactor +

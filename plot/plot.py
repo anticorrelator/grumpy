@@ -6,7 +6,7 @@ import grumpy.plot.husl as _husl
 
 
 def huslgen(hue, sat=80, light=50):
-    return _husl.husl_to_hex(hue * 3.6, sat, light)
+    return _husl.husl_to_hex(hue, sat, light)
 
 
 def lighten(color, factor=1.2):
@@ -86,13 +86,15 @@ def rhist(ax, data, **keywords):
 def waterfall(the_dataframe, offset=.3):
 
     last = []
-    the_dataframe = the_dataframe.fillna(method='pad')
+    line_handles = []
+    the_dataframe = the_dataframe.fillna(method='pad', limit=1)
     scale = _np.abs(the_dataframe.max().max() - the_dataframe.min().min())
     fig, ax = _plt.subplots()
 
-    for index, cname in enumerate(the_dataframe.columns.values):
+    for index, cname in enumerate(the_dataframe.columns):
         new = the_dataframe[cname].add(index * offset * scale)
         base_line, = ax.plot(new.index.values.astype(float), new, alpha=.8)
+        line_handles.append(base_line)
 
         if index > 0:
             plotrange = the_dataframe.index.values.astype(float)
@@ -108,16 +110,27 @@ def waterfall(the_dataframe, offset=.3):
 
         last = new
 
+    legend = ax.legend(line_handles[::-1], the_dataframe.columns.values[::-1],
+                       bbox_to_anchor=(1.03, 1), loc=2, borderaxespad=0.)
+    for legobjects in legend.legendHandles:
+        legobjects.set_linewidth(3)
+
     plotrange = the_dataframe.index.values.astype(float)
     base_color = _mpl.colors.colorConverter.to_rgb(base_line.
                                                    get_color())
-    ax.fill_between(plotrange, ax.get_ylim()[0],
+
+    ylimits = ax.get_ylim()
+    xlimits = (the_dataframe.index.values.min(),
+               the_dataframe.index.values.max())
+
+    ax.fill_between(plotrange, ylimits[0],
                     the_dataframe[the_dataframe.columns.values[0]][plotrange].
                     values.astype(float),
                     facecolor=lighten(first_color),
                     alpha=.2)
 
-    ax.legend(the_dataframe.columns.values)
-    rstyle(ax)
+    _plt.ylim(ylimits)
+    _plt.xlim(xlimits)
+    _plt.show()
 
     return ax

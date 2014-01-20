@@ -98,7 +98,7 @@ class RawBScan():
         else:
             return frac
 
-    def smooth_bscan(self, abperiod=None, window=5, step=.005, **kwargs):
+    def smooth_with_lowess(self, abperiod=None, window=5, step=.005, **kwargs):
 
         if abperiod is None:
             abperiod = _gp.g_mean(self._ab_range()) ** -1
@@ -190,6 +190,9 @@ class SmoothedBScan(RawBScan):
 
         self.df = self.df.filter(items=ramp_list)
         self.std = self.std.filter(items=ramp_list)
+        self.thermometer_c = self.thermometer_c.filter(items=ramp_list)
+        self.thermometer_d = self.thermometer_d.filter(items=ramp_list)
+        self.lockin_r = self.lockin_r.filter(items=ramp_list)
         self._to_current(self.df)
 
     def drop_data(self, column, bmin=None, bmax=None):
@@ -199,11 +202,13 @@ class SmoothedBScan(RawBScan):
         if bmax is None:
             bmax = _np.inf
 
-        self.df[column] = self.df[column].where(~((self.df.index > bmin) &
-                                                (self.df.index < bmax)))
-        self.std[column] = self.std[column].where(~((self.std.index > bmin) &
-                                                  (self.std.index < bmax)))
+        excl = (self.df.index > bmin) & (self.df.index < bmax)
 
+        self.df[column] = self.df[column].where(~excl)
+        self.std[column] = self.std[column].where(~excl)
+        self.thermometer_c[column] = self.thermometer_c[column].where(~excl)
+        self.thermometer_d[column] = self.thermometer_d[column].where(~excl)
+        self.lockin_r[column] = self.lockin_r[column].where(~excl)
         self._to_current(self.df)
 
     def psd(self):
@@ -242,6 +247,7 @@ class BScan():
         self.thermometer_c = smoothed.thermometer_c
         self.thermometer_d = smoothed.thermometer_d
         self.lockin_r = smoothed.lockin_r
+        self.cantilever = smoothed.cantilever
 
     def psd(self):
         return _gp.psd(self.ab)

@@ -26,6 +26,11 @@ def iterfy(x):
     return x
 
 
+def pload(filename):
+    import pickle as _p
+    return _p.load(open(filename, 'rb'))
+
+
 def strip_ends_from(pd_series, value_to_strip=None):
     if value_to_strip is None:
         bool_values = _np.isnan(pd_series)
