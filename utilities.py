@@ -1,4 +1,5 @@
 import numpy as _np
+import pandas as _pd
 
 
 class Bunch:
@@ -32,10 +33,16 @@ def pload(filename):
 
 
 def strip_ends_from(pd_series, value_to_strip=None):
-    if value_to_strip is None:
-        bool_values = _np.isnan(pd_series)
+
+    if type(pd_series) is _pd.Series:
+        svalues = pd_series.values.astype(float)
     else:
-        bool_values = _np.array(pd_series == value_to_strip)
+        svalues = _np.array(pd_series)
+
+    if value_to_strip is None:
+        bool_values = _np.isnan(svalues)
+    else:
+        bool_values = _np.array(svalues == value_to_strip)
 
     left_mask = []
     for bools in bool_values:

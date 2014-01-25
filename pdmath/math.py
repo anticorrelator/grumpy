@@ -4,7 +4,6 @@ import pandas as _pd
 import cylowess as _cl
 import scipy as _sp
 import bottleneck as _bn
-import scipy.stats as _sps
 import scipy.fftpack as _fft
 import scipy.signal as _spsig
 import scipy.optimize as _spo
@@ -32,8 +31,12 @@ def clean_series(pd_series):
     """
 
     nanmask = _np.isnan(pd_series.values.astype(float))
-    clean_data = pd_series.interpolate(method='slinear')
-    clean_data = clean_data.fillna(method='bfill')
+
+    if any(nanmask):
+        clean_data = pd_series.interpolate(method='slinear')
+        clean_data = clean_data.fillna(method='bfill')
+    else:
+        clean_data = pd_series
 
     return clean_data, nanmask
 
@@ -269,12 +272,12 @@ def robust_mean(data, reject=.5, method='trim', stdcutoff=None, axis=None):
         rejected = reject_outliers(data, reject=reject, axis=axis)
 
     if stdcutoff is None:
-        return _sps.nanmean(rejected, axis=axis)
+        return _bn.nanmean(rejected, axis=axis)
     else:
         if _np.std(data) < stdcutoff:
-            return _sps.nanmean(data, axis=axis)
+            return _bn.nanmean(data, axis=axis)
         else:
-            return _sps.nanmean(rejected, axis=axis)
+            return _bn.nanmean(rejected, axis=axis)
 
 
 def g_mean(data, axis=None):
@@ -518,7 +521,7 @@ def corr_df(pd_dframe, reference=None, series_list=None):
             new_cols.append(correlate(df[reference], df[loop_col],
                             as_series=True))
 
-        return _pd.DataFrame(dict(zip(names, new_cols)))
+        return _pd.DataFrame(dict(zip(series_list, new_cols)))
 
     else:
 
@@ -656,7 +659,7 @@ def dintegrate(series, xmin=None, xmax=None, closed=True):
         'xmin' and 'xmax'
     """
 
-    raw = clean_series(_gp.strip_ends_from(series.sort_index()))[0]
+    raw = _gp.strip_ends_from(series.sort_index()).dropna()
     x_data = raw.index.values.astype(float)
 
     if xmin is None:

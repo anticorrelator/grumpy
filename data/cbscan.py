@@ -145,7 +145,8 @@ class SmoothedBScan(RawBScan):
                                           _np.sin(theta))
 
     def _pc_integration_factor(self, harmonic=1):
-        return (2 * _np.pi * _gp.g_mean(harmonic * self._ab_range())) ** -1
+        b_freq = [harmonic * x for x in self._ab_range()]
+        return (2 * _np.pi * _gp.g_mean(b_freq)) ** -1
 
     def _to_current(self, df, harmonic=1, sensitivity=None):
 
