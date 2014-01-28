@@ -10,6 +10,24 @@ import scipy.optimize as _spo
 import scipy.integrate as _spi
 
 
+def broadcaster(func):
+    """
+    BROADCASTER is a decorator that accepts functions that take pandas Series
+    as their first input. If the input to those functions is a DataFrame,
+    it broadcasts the input function to "func" each column as a Series.
+    """
+    def broadcasted(*args):
+        if type(args[0]) is _pd.DataFrame:
+            cols = args[0].columns
+            params = args[1:]
+            output = {c: func(args[0][c], *params) for c in cols}
+            return _pd.DataFrame(output)
+        else:
+            return func(*args)
+
+    return broadcasted
+
+
 def clean_series(pd_series):
 
     """
@@ -292,6 +310,32 @@ def g_mean(data, axis=None):
     else:
         numel = data.shape[axis]
     return _np.prod(data, axis=axis) ** (1 / numel)
+
+
+@broadcaster
+def delinear(data):
+    """
+    DELINEAR removes a linear trend from the input data. If the input data is
+    a pandas series, the index values will be taken as the x-values. Otherwise
+    the input data will be taken to be evenly spaced.
+
+    An offset is added to the output to compensate for the removed linear
+    trend.
+    """
+
+    if type(data) is _pd.Series:
+        xs = data.values.astype(float)
+    else:
+        xs = range(len(data))
+
+    if len(data) <= 3:
+        return data
+
+    fit = _np.array([_np.polyfit(xs, data, 1)[0], 0])
+    line = _np.polyval(fit, xs)
+    offset = _np.sign(fit[0]) * (line.max() - line.min()) / 2
+
+    return data - line + offset
 
 
 def polysmooth(series, order=5):
@@ -608,6 +652,7 @@ def hilbert_phase(pd_series):
     return _np.unwrap(_np.angle(hilbert(pd_series)))
 
 
+@broadcaster
 def iintegrate(series, initial=0):
 
     """
@@ -639,6 +684,7 @@ def iintegrate(series, initial=0):
     return output
 
 
+@broadcaster
 def dintegrate(series, xmin=None, xmax=None, closed=True):
 
     """
