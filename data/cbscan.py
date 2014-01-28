@@ -167,10 +167,13 @@ class SmoothedBScan(RawBScan):
         bootstrapped = _gp.block_bootstrap(data, _np.floor(count / blocks))
         return _bn.nanstd([_bn.nanmean(x) for x in bootstrapped])
 
-    def _calculate_scatter(self, std):
-        cols = self.df.columns
-        std_df = _pd.DataFrame({col: [std[col][_np.floor(i / 3)] for i in
-                               range(len(self.df[col]))] for col in cols})
+    def _calculate_scatter(self, window=3):
+        ramps = self.df.columns
+        std_dict = {c: [_bn.nanstd(self.df[c][window*i: window*(i+1)])
+                    for i in range(len(self.df[c]))] for c in ramps}
+        std = _pd.DataFrame(std_dict)
+        std_df = _pd.DataFrame({c: [std[c][_np.floor(i / window)] for i in
+                               range(len(self.df[c]))] for c in ramps})
         return std_df
 
     def _block_b(self, step):
@@ -178,19 +181,14 @@ class SmoothedBScan(RawBScan):
 
     def bin(self, step, harmonic=1, **kwargs):
         self.data['b_field'] = self._block_b(step)
-        self.data['b_aux'] = self._block_b(3 * step)
         bunched = self.data.groupby(['b_field', 'ramp_index'])
-        stdbunch = self.data.groupby(['b_aux', 'ramp_index'])
-        std = stdbunch.smoothed.apply(self._bootstrap, 3).unstack()
 
         self.df = bunched.smoothed.apply(_gp.robust_mean, **kwargs).unstack()
-        self.std = self._calculate_scatter(std)
+        self.std = self._calculate_scatter()
         self.thermometer_c = bunched.thermometer_c.apply(_bn.nanmean).unstack()
         self.thermometer_d = bunched.thermometer_d.apply(_bn.nanmean).unstack()
         self.lockin_r = bunched.lockin_r.apply(_bn.nanmean).unstack()
         self._to_current(self.df, harmonic=harmonic)
-
-        self.data = self.data.drop(['b_aux'], 1)
 
     def bin_with(self, step, method, harmonic=1, **kwargs):
         self.data['b_field'] = step * _np.floor(self._b / step) + (step / 2)
