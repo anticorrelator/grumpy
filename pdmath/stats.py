@@ -2,12 +2,18 @@ import numpy as _np
 import grumpy as _gp
 
 
-def bootstrap(pd_series, size, samples):
+def bootstrap(pd_series, block_size, samples):
+
+    """
+    BOOTSTRAP randomly selects random subsets from the input pandas Series
+    "pd_series". Each random subset has length "block_size". Internally calls
+    random.sample.
+    """
 
     from random import sample as _rs
     cleaned = _gp.clean_series(pd_series)[0]
     raw = cleaned.values.astype(float).tolist()
-    samplings = _np.array([_rs(raw, size) for count in range(samples)])
+    samplings = _np.array([_rs(raw, block_size) for count in range(samples)])
 
     return samplings
 

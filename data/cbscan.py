@@ -1,6 +1,7 @@
 import numpy as _np
 import grumpy as _gp
 import pandas as _pd
+import bottleneck as _bn
 import scipy.stats as _sps
 import pickle as _p
 
@@ -55,15 +56,16 @@ class RawBScan():
         return pad_area / ring_area
 
     def _cantilever_k(self):
-        au_mass = self.cantilever.ring.number * self.cantilever.ring.density \
-            * self.cantilever.ring.thickness * self.cantilever.ring.dia * 4 \
-            * self.cantilever.ring.linewidth
+        # au_mass = self.cantilever.ring.number * self.cantilever.ring.density \
+        #     * self.cantilever.ring.thickness * self.cantilever.ring.dia * 4 \
+        #     * self.cantilever.ring.linewidth
 
         cantilever_mass = self.cantilever.w * self.cantilever.l * \
             self.cantilever.t * self.cantilever.density
         cantilever_emass = (33 / 140) * cantilever_mass
 
-        total_mass = cantilever_emass + au_mass
+        # total_mass = cantilever_emass + au_mass
+        total_mass = cantilever_emass
         return (2 * _np.pi * self.cantilever.f0) ** 2 * total_mass
 
     def _ab_range(self, dia=None, w=None, t=None, angle=None):
@@ -157,18 +159,38 @@ class SmoothedBScan(RawBScan):
 
         self.di = df.apply(lambda x: x / (sensitivity * b ** 2))
         self.pc = self.di * self._pc_integration_factor(harmonic=harmonic)
-        self.ab = self.pc.apply(_np.mean, axis=1)
+        self.ab = self.pc.apply(_bn.nanmean, axis=1)
+
+    def _bootstrap(self, data, blocks):
+        count = len(data)
+        data = _gp.iterfy(data)
+        bootstrapped = _gp.block_bootstrap(data, _np.floor(count / blocks))
+        return _bn.nanstd([_bn.nanmean(x) for x in bootstrapped])
+
+    def _calculate_scatter(self, std):
+        cols = self.df.columns
+        std_df = _pd.DataFrame({col: [std[col][_np.floor(i / 3)] for i in
+                               range(len(self.df[col]))] for col in cols})
+        return std_df
+
+    def _block_b(self, step):
+        return step * _np.floor(self._b / step) + (step / 2)
 
     def bin(self, step, harmonic=1, **kwargs):
-        self.data['b_field'] = step * _np.floor(self._b / step) + (step / 2)
+        self.data['b_field'] = self._block_b(step)
+        self.data['b_aux'] = self._block_b(3 * step)
         bunched = self.data.groupby(['b_field', 'ramp_index'])
+        stdbunch = self.data.groupby(['b_aux', 'ramp_index'])
+        std = stdbunch.smoothed.apply(self._bootstrap, 3).unstack()
 
         self.df = bunched.smoothed.apply(_gp.robust_mean, **kwargs).unstack()
-        self.std = bunched.smoothed.apply(_sps.nanstd).unstack()
-        self.thermometer_c = bunched.thermometer_c.apply(_np.mean).unstack()
-        self.thermometer_d = bunched.thermometer_d.apply(_np.mean).unstack()
-        self.lockin_r = bunched.lockin_r.apply(_np.mean).unstack()
+        self.std = self._calculate_scatter(std)
+        self.thermometer_c = bunched.thermometer_c.apply(_bn.nanmean).unstack()
+        self.thermometer_d = bunched.thermometer_d.apply(_bn.nanmean).unstack()
+        self.lockin_r = bunched.lockin_r.apply(_bn.nanmean).unstack()
         self._to_current(self.df, harmonic=harmonic)
+
+        self.data = self.data.drop(['b_aux'], 1)
 
     def bin_with(self, step, method, harmonic=1, **kwargs):
         self.data['b_field'] = step * _np.floor(self._b / step) + (step / 2)
@@ -176,9 +198,9 @@ class SmoothedBScan(RawBScan):
 
         self.df = bunched.smoothed.apply(method, **kwargs).unstack()
         self.std = bunched.smoothed.apply(_sps.nanstd).unstack()
-        self.thermometer_c = bunched.thermometer_c.apply(_np.mean).unstack()
-        self.thermometer_d = bunched.thermometer_d.apply(_np.mean).unstack()
-        self.lockin_r = bunched.lockin_r.apply(_np.mean).unstack()
+        self.thermometer_c = bunched.thermometer_c.apply(_bn.nanmean).unstack()
+        self.thermometer_d = bunched.thermometer_d.apply(_bn.nanmean).unstack()
+        self.lockin_r = bunched.lockin_r.apply(_bn.nanmean).unstack()
         self._to_current(self.df, harmonic=harmonic)
 
     def drop_ramps(self, ramps_to_drop):
