@@ -179,12 +179,12 @@ class SmoothedBScan(RawBScan):
     def _block_b(self, step):
         return step * _np.floor(self._b / step) + (step / 2)
 
-    def bin(self, step, harmonic=1, **kwargs):
+    def bin(self, step, harmonic=1, std_window=3, **kwargs):
         self.data['b_field'] = self._block_b(step)
         bunched = self.data.groupby(['b_field', 'ramp_index'])
 
         self.df = bunched.smoothed.apply(_gp.robust_mean, **kwargs).unstack()
-        self.std = self._calculate_scatter()
+        self.std = self._calculate_scatter(std_window)
         self.thermometer_c = bunched.thermometer_c.apply(_bn.nanmean).unstack()
         self.thermometer_d = bunched.thermometer_d.apply(_bn.nanmean).unstack()
         self.lockin_r = bunched.lockin_r.apply(_bn.nanmean).unstack()

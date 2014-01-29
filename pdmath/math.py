@@ -5,27 +5,100 @@ import cylowess as _cl
 import scipy as _sp
 import bottleneck as _bn
 import scipy.fftpack as _fft
-import scipy.signal as _spsig
 import scipy.optimize as _spo
 import scipy.integrate as _spi
+import functools as _functools
+from itertools import product as _product
 
 
-def broadcaster(func):
+def dataframer(func):
     """
-    BROADCASTER is a decorator that accepts functions that take pandas Series
+    DATAFRAMER is a decorator that accepts functions that take pandas Series
     as their first input. If the input to those functions is a DataFrame,
-    it broadcasts the input function to "func" each column as a Series.
+    it broadcasts the input function to "func" each column or row as a Series.
     """
-    def broadcasted(*args):
-        if type(args[0]) is _pd.DataFrame:
-            cols = args[0].columns
-            params = args[1:]
-            output = {c: func(args[0][c], *params) for c in cols}
-            return _pd.DataFrame(output)
+    def broadcasted(*args, axis=0, index=None, columns=None, **kw):
+
+        raw = args[0]
+        params = args[1:]
+        allowed = (_np.ndarray, _pd.Series, _pd.DataFrame)
+        if not isinstance(args[0], allowed):
+            type_msg = 'Input must be array-like.'
+            raise TypeError(type_msg)
+
+        if isinstance(args[0], _pd.Series):
+            return func(*args, **kw)
+
+        if not isinstance(args[0], _pd.DataFrame):
+            if raw.ndim > 2:
+                dim_msg = 'Array has too many dimensions to be cast \
+                    into a DataFrame'
+                raise TypeError(dim_msg)
+            if raw.ndim == 1:
+                df = _pd.Series(raw, index=index)
+                return func(df, *params, **kw)
+            if axis > 1:
+                dim_msg = 'DataFrames only have axis 1 or 0'
+                raise TypeError(dim_msg)
+            else:
+                df = _pd.DataFrame(raw, index=index, columns=columns)
         else:
-            return func(*args)
+            df = raw
+
+        if axis == 0:
+            outs = {k: func(s, *params, **kw) for k, s in df.iteritems()}
+            if all([_np.isscalar(v) for v in outs.values()]):
+                return _pd.Series(outs)
+            else:
+                return _pd.DataFrame.from_dict(outs, orient='columns')
+
+        elif axis == 1:
+            outs = {k: func(s, *params, **kw) for k, s in df.iterrows()}
+            return _pd.DataFrame.from_dict(outs, orient='index')
 
     return broadcasted
+
+
+def axify(func=None, output='vector', axify_dim=1):
+    if output not in ['vector', 'scalar']:
+        msg = '"output" argument must be either "vector" or "scalar".'
+        raise TypeError(msg)
+
+    if func is None:
+        return _functools.partial(axify, output=output, axify_dim=axify_dim)
+
+    @_functools.wraps(func)
+    def axified(*args, axis=None, **kwargs):
+        if not isinstance(args[0], _np.ndarray):
+            type_msg = 'Input must be array-like.'
+            raise TypeError(type_msg)
+        if args[0].ndim >= axify_dim:
+            dat = args[0]
+            dims = dat.shape
+            if axis is None:
+                axis = dat.ndim - 1
+            if axis > dat.ndim:
+                dim_msg = '"axis" out of range of input dimension'
+                raise TypeError(dim_msg)
+
+            if output is 'vector':
+                output_array = _np.zeros(dims)
+            elif output is 'scalar':
+                outputdims = dims[:axis] + tuple([1]) + dims[axis+1:]
+                output_array = _np.zeros(outputdims)
+
+            slicer = tuple([slice(None)])
+            for r in _product(*(range(x) for x in dims[:axis]+dims[axis+1:])):
+                subindex = r[:axis] + slicer + r[axis:]
+                subarray = dat[subindex].ravel()
+                suboutput = _np.squeeze(func(subarray, *args[1:], **kwargs))
+                output_array[subindex] = suboutput
+
+            return _np.squeeze(output_array)
+
+        else:
+            return func(*args, **kwargs)
+    return axified
 
 
 def clean_series(pd_series):
@@ -77,7 +150,7 @@ def force_spacing(pd_series):
     if index_uniformity_of(pd_series) is True:
         return clean_series(pd_series)[0]
 
-    data_length = len(pd_series)
+    data_length = len(pd_series.index)
     data_indices = pd_series.dropna().index.values.astype(float)
     data_points = pd_series.dropna().values.astype(float)
 
@@ -90,17 +163,15 @@ def force_spacing(pd_series):
     return _pd.Series(forced_data, index=forced_indices)
 
 
-def index_uniformity_of(pd_series):
+def index_uniformity_of(pandas_obj):
 
     """
-    Checks if the indices of a pandas Series is uniformly spaced.
-
-    Accepts a pandas Series, returns boolean True or False.
+    Checks if the indices of a pandas Series or DataFrame is uniformly spaced.
     """
 
-    data_indices = pd_series.index.values.astype(float)
+    data_indices = pandas_obj.index.values.astype(float)
     spacing = _np.diff(data_indices)
-    if all(spacing - _np.mean(spacing) < .01 * _np.mean(spacing)):
+    if _np.allclose(spacing, [_bn.nanmean(spacing)] * len(spacing), 1e-4):
         return True
     else:
         return False
@@ -131,11 +202,11 @@ def demedian(data, axis=None):
         axis = ds.ndim - 1
 
     if ds.ndim == 1:
-        demedianed = ds - _np.median(ds, axis=axis)
+        demedianed = ds - _bn.nanmedian(ds, axis=axis)
     elif axis == 0:
-        demedianed = _np.array([x - _np.median(x) for x in ds.T]).T
+        demedianed = _np.array([x - _bn.nanmedian(x) for x in ds.T]).T
     elif axis == 1:
-        demedianed = _np.array([x - _np.median(x) for x in ds])
+        demedianed = _np.array([x - _bn.nanmedian(x) for x in ds])
 
     return demedianed
 
@@ -312,7 +383,7 @@ def g_mean(data, axis=None):
     return _np.prod(data, axis=axis) ** (1 / numel)
 
 
-@broadcaster
+@dataframer
 def delinear(data):
     """
     DELINEAR removes a linear trend from the input data. If the input data is
@@ -637,7 +708,7 @@ def psd(series):
 
 
 def hilbert(pd_series):
-
+    import scipy.signal as _spsig
     data = force_spacing(pd_series)
     return _spsig.hilbert(data)
 
@@ -652,7 +723,7 @@ def hilbert_phase(pd_series):
     return _np.unwrap(_np.angle(hilbert(pd_series)))
 
 
-@broadcaster
+@dataframer
 def iintegrate(series, initial=0):
 
     """
@@ -684,7 +755,7 @@ def iintegrate(series, initial=0):
     return output
 
 
-@broadcaster
+@dataframer
 def dintegrate(series, xmin=None, xmax=None, closed=True):
 
     """
