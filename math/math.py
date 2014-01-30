@@ -15,7 +15,27 @@ def dataframer(func):
     """
     DATAFRAMER is a decorator that accepts functions that take pandas Series
     as their first input. If the input to those functions is a DataFrame,
-    it broadcasts the input function to "func" each column or row as a Series.
+    it broadcasts the input function "func" over each column or row as a
+    Series.
+
+    If the input is a ndarray-like object with dimension <=2, DATAFRAMER will
+    attempt to cast the input as a DataFrame. Optional "index" and "columns"
+    parameters can be passed into the input function to set index or column
+    values to be used during the Series or DataFrame construction.
+
+    DATAFRAMER is expensive. Native methods and functions that are broadcast
+    internally are much faster. Use DataFramer as a convenience wrapper or if
+    broadcasting over DataFrames is not easily done.
+
+    Can be invoked using the @dataframer syntax before a function definition.
+
+    Parameters
+    ----------
+    func : callable
+
+    Returns
+    -------
+    broadcasted : callable
     """
     def broadcasted(*args, axis=0, index=None, columns=None, **kw):
 
@@ -60,6 +80,12 @@ def dataframer(func):
 
 
 def axify(func=None, output='vector', axify_dim=1):
+    """
+    AXIFY is a decorator that broadcasts a function that accepts a
+    1-dimensional numpy array to arbitrary dimensions. The decorated function
+    also gains an "axis" argument which will apply the function along the
+    specified axis.
+    """
     if output not in ['vector', 'scalar']:
         msg = '"output" argument must be either "vector" or "scalar".'
         raise TypeError(msg)
@@ -91,7 +117,7 @@ def axify(func=None, output='vector', axify_dim=1):
             for r in _product(*(range(x) for x in dims[:axis]+dims[axis+1:])):
                 subindex = r[:axis] + slicer + r[axis:]
                 subarray = dat[subindex].ravel()
-                suboutput = _np.squeeze(func(subarray, *args[1:], **kwargs))
+                suboutput = func(subarray, *args[1:], **kwargs)
                 output_array[subindex] = suboutput
 
             return _np.squeeze(output_array)
@@ -481,7 +507,7 @@ def lowess(series, frac=.5, delta=None, it=None):
 
 
 def loess(series, frac=.5, it=None):
-
+    from grumpy.math.loess import _loess
     output = _np.empty(series.shape)
     output[:] = _np.nan
     nanmask = _np.isnan(series.values.astype(float))
@@ -491,7 +517,7 @@ def loess(series, frac=.5, it=None):
     if it is None:
         it = 3
 
-    smooth = _gp._loess(y_data, x_data, frac=frac, it=it)
+    smooth = _loess(y_data, x_data, frac=frac, it=it)
     output[~nanmask] = smooth[:, 1]
     return output
 
@@ -835,143 +861,3 @@ def align_df(pd_dframe, reference=None, series_list=None):
             offset_list.append(offset)
 
         return df, offset_list
-
-
-class FitFunction():
-
-    def __init__(self, fitfunc):
-        self.fitfunc = fitfunc
-
-    def __call__(self, x_data, p):
-        return self.fitfunc(_np.array(x_data), *p)
-
-    def fit(self, p0, series, with_data=True):
-        fitp = _spo.curve_fit(self.fitfunc, p0, series)[0]
-        return FitObject(self.fitfunc, fitp, series, with_data)
-
-
-class FitObject():
-
-    def __init__(self, fitfunc, fitp, series, with_data=True):
-        self.fitfunc = lambda x: fitfunc(fitp, x)
-        self.fitp = fitp
-
-        if with_data is True:
-            self.data = _pd.DataFrame(series, columns=['raw'])
-            self.data['fitted'] = self(series.index.values.
-                                       astype(float))
-            self.data['residuals'] = _np.abs(self.data['raw'] -
-                                             self.data['fitted'])
-
-    def __call__(self, x_data):
-        return self.fitfunc(x_data)
-
-
-def _plimit(func, pmin, pmax):
-    pmin = _np.array(pmin)
-    pmax = _np.array(pmax)
-
-    def limited(x, *p):
-        parray = _np.array(p)
-        output = _gp.iterfy(func(x, *p))
-
-        scale = []
-
-        for index, params in enumerate(p):
-            pcopy = parray.copy()
-            pcopy[index] += .1
-            dout = func(x, *tuple(pcopy))
-            diff = _np.sum(_np.abs((output - dout) / (len(output) * output)))
-
-            scale.append(1 / diff)
-
-        lower = pmin - parray
-        upper = parray - pmax
-
-        lower[lower < 0] = 0
-        upper[upper < 0] = 0
-
-        output = output * (_np.prod(_np.exp(scale * lower)) *
-                           _np.prod(_np.exp(scale * upper)))
-
-        return output
-
-    return limited
-
-
-def _general_function(params, xdata, ydata, function):
-    return function(xdata, *params) - ydata
-
-
-def _weighted_general_function(params, xdata, ydata, function, weights):
-    return weights * (function(xdata, *params) - ydata)
-
-
-def curve_fit(f, pd_series, p0=None, pmin=None, pmax=None, sigma=None, **kw):
-    """
-    """
-
-    xdata = pd_series.index.values.astype(float)
-    ydata = pd_series.values.astype(float)
-
-    if p0 is None:
-        # determine number of parameters by inspecting the function
-        import inspect
-        args, varargs, varkw, defaults = inspect.getargspec(f)
-        if len(args) < 2:
-            msg = "Unable to determine number of fit parameters."
-            raise ValueError(msg)
-        if 'self' in args:
-            p0 = [1.0] * (len(args)-2)
-        else:
-            p0 = [1.0] * (len(args)-1)
-
-    if _np.isscalar(p0):
-        p0 = _np.array([p0])
-    else:
-        p0 = _np.array(p0)
-
-    if (pmin is None) & (pmax is None):
-        f = f
-    else:
-        if pmin is None:
-            pmin = _np.array([-_np.inf] * len(p0))
-            pmax = _np.array(pmax)
-            p0[p0 > pmax] = pmax[p0 > pmax]
-        elif pmax is None:
-            pmax = _np.array([_np.inf] * len(p0))
-            pmin = _np.array(pmin)
-            p0[p0 < pmin] = pmin[p0 < pmin]
-        else:
-            pmin = _np.array(pmin)
-            pmax = _np.array(pmax)
-            p0[p0 > pmax] = (pmax[p0 > pmax] + pmin[p0 > pmax]) / 2
-            p0[p0 < pmin] = (pmax[p0 < pmin] + pmin[p0 < pmin]) / 2
-        f = _plimit(f, pmin, pmax)
-
-    args = (xdata, ydata, f)
-    if sigma is None:
-        func = _general_function
-    else:
-        func = _weighted_general_function
-        args += (1.0/_np.asarray(sigma),)
-
-    # Remove full_output from kw, otherwise we're passing it in twice.
-    return_full = kw.pop('full_output', False)
-    res = _spo.leastsq(func, p0, args=args, full_output=1, **kw)
-    (popt, pcov, infodict, errmsg, ier) = res
-
-    if ier not in [1, 2, 3, 4]:
-        msg = "Optimal parameters not found: " + errmsg
-        raise RuntimeError(msg)
-
-    if (len(ydata) > len(p0)) and pcov is not None:
-        s_sq = (func(popt, *args)**2).sum()/(len(ydata)-len(p0))
-        pcov = pcov * s_sq
-    else:
-        pcov = _np.inf
-
-    if return_full:
-        return popt, pcov, infodict, errmsg, ier
-    else:
-        return popt, pcov
