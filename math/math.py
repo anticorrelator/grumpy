@@ -5,7 +5,6 @@ import cylowess as _cl
 import scipy as _sp
 import bottleneck as _bn
 import scipy.fftpack as _fft
-import scipy.optimize as _spo
 import scipy.integrate as _spi
 import functools as _functools
 from itertools import product as _product
@@ -117,14 +116,17 @@ def axify(func=None, output='vector', axify_dim=1):
             for r in _product(*(range(x) for x in dims[:axis]+dims[axis+1:])):
                 subindex = r[:axis] + slicer + r[axis:]
                 subarray = dat[subindex].ravel()
-                suboutput = func(subarray, *args[1:], **kwargs)
-                output_array[subindex] = suboutput
+                output_array[subindex] = func(subarray, *args[1:], **kwargs)
 
             return _np.squeeze(output_array)
 
         else:
             return func(*args, **kwargs)
     return axified
+
+
+def quadrature(funcs):
+    pass
 
 
 def clean_series(pd_series):
@@ -237,6 +239,40 @@ def demedian(data, axis=None):
     return demedianed
 
 
+def demean(data, axis=None):
+    """
+    Subtracts the mean from a dataset.
+
+    Parameters
+    ----------
+    data : array-like
+        Input array. Must have dimension 2 or less.
+    axis : int, optional, default (ndim - 1)
+        applies DEMEDIAN along a specific axis. Must be either 0 or 1.
+
+    Returns
+    -------
+    ds : numpy array of the same dimension as "data"
+    """
+    ds = data.astype(float)
+
+    if data.ndim > 2:
+        dim_msg = 'Expected 2 or fewer dimensions'
+        raise TypeError(dim_msg)
+
+    if axis is None:
+        axis = ds.ndim - 1
+
+    if ds.ndim == 1:
+        demeaned = ds - _bn.nanmean(ds, axis=axis)
+    elif axis == 0:
+        demeaned = _np.array([x - _bn.nanmean(x) for x in ds.T]).T
+    elif axis == 1:
+        demeaned = _np.array([x - _bn.nanmean(x) for x in ds])
+
+    return demeaned
+
+
 def trim(data, reject=.5, axis=None):
 
     """
@@ -278,7 +314,7 @@ def trim(data, reject=.5, axis=None):
         r_msg = 'reject parameter must be between 0 and 1'
         raise ValueError(r_msg)
 
-    dlen = _np.shape(ds)[axis]
+    dlen = ds.shape[axis]
     thresh = _np.floor(dlen * reject / 2)
 
     if thresh == 0:
@@ -397,7 +433,7 @@ def robust_mean(data, reject=.5, method='trim', stdcutoff=None, axis=None):
 
 def g_mean(data, axis=None):
 
-    data = _np.array(data).copy()
+    data = _np.asarray(data).copy()
     if any(data <= 0):
         pos_msg = 'Geometric mean is only defined for positive arguments.'
         raise ValueError(pos_msg)
@@ -550,9 +586,15 @@ def rolling_window(series, window_length=5, window='hanning',
         a non-causal filter.
     """
 
-    if not window in ['flat', 'hanning', 'hamming', 'bartlett', 'blackman']:
-        raise(ValueError, "Window is not 'flat', 'hanning', 'hamming', \
-              'bartlett', or 'blackman'")
+    wdict = {'hanning': _np.hanning,
+             'hamming': _np.hamming,
+             'bartlett': _np.bartlett,
+             'blackman': _np.blackman}
+
+    if not window in wdict.keys():
+        msg = 'Window is not "flat", "hanning", "hamming", "bartlett", \
+            or "blackman"'
+        raise ValueError(msg)
 
     nanmask = _np.isnan(series.values.astype(float))
     x_data = series.fillna(method='bfill').values.astype(float)
@@ -560,7 +602,7 @@ def rolling_window(series, window_length=5, window='hanning',
     if window == 'flat':
         w = _np.ones(window_length, 'd')
     else:
-        w = eval('_np.' + window + '(window_length)')
+        w = wdict[window](window_length)
 
     s = _np.r_[x_data[window_length - 1:0:-1], x_data,
                x_data[-1:-window_length:-1]]
