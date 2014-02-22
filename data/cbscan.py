@@ -289,6 +289,7 @@ class BScan():
         ax.axvspan(r2[0], r2[1], color='yellow', alpha=.3)
         ax.axvspan(c1 - .2 * s1, c1 + .2 * s1, color='red', alpha=.2)
         ax.axvspan(c2 - .2 * s2, c2 + .2 * s2, color='orange', alpha=.2)
+        return ax
 
     def plot_fft(self):
         ax = self.fft().plot()
@@ -303,3 +304,4 @@ class BScan():
         ax.axvspan(r2[0], r2[1], color='yellow', alpha=.3)
         ax.axvspan(c1 - .2 * s1, c1 + .2 * s1, color='red', alpha=.2)
         ax.axvspan(c2 - .2 * s2, c2 + .2 * s2, color='orange', alpha=.2)
+        return ax

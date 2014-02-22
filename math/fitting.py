@@ -1,14 +1,17 @@
 import numpy as _np
 import grumpy as _gp
+import pandas as _pd
 import matplotlib.pyplot as _plt
 import scipy.optimize as _spo
 
 
 class FitObject():
 
-    _error = {0: 'Does not match number of input parameters'}
+    _error = {0: 'Does not match number of input parameters',
+              1: 'Does not match number of data points',
+              2: 'Cannot calculate goodness of fit without errorbars'}
 
-    def __init__(self, data, fitfunc, fitp, cov, p0, pmin, pmax):
+    def __init__(self, data, fitfunc, fitp, cov, p0, pmin, pmax, errorbars):
         self._fitfunc = fitfunc
         self._nargs, self._args = self._get_args()
 
@@ -20,16 +23,28 @@ class FitObject():
         self._fitrange = None
 
         self._data = data
-        self.residuals = self._calculate_residuals()
-        self.fitdata = data.copy()
+        self._residuals = self._calculate_residuals()
+        self.errorbars = errorbars
 
     def __call__(self, x_data, params=None):
         if params is None:
             params = self.fitp
         return self.fitfunc(_np.asarray(x_data), *params)
 
-    # def __repr__(self):
-    #     pass
+    def __repr__(self):
+        truncated = [x[:5] + ' = ' for x in self.args]
+        params = ['{:3.3g}'.format(x) for x in self.fitp]
+        errors = [' +/- ' + '{:1.1g}'.format(x) for x in self._perrors()]
+        sigma = [' ({:1.0f})'.format(x) for x in self.fitp / self._perrors()]
+        plist = ["".join(s) for s in zip(truncated, params, errors, sigma)]
+
+        plist.append('\nchi2 = {:3.3g}'.format(self.chi2))
+        if self.errorbars is not None:
+            plist.append('Q = {:2.2g}'.format(self.Q))
+        else:
+            plist.append('S = %.3g' % (_np.sqrt(self.chi2) / len(self.data)))
+
+        return str.join('\n', plist)
 
     def _get_args(self):
         import inspect
@@ -43,9 +58,24 @@ class FitObject():
             return len(args)-1, args[1:]
 
     def _calculate_residuals(self):
-        xdata = self._data.index.values.astype(float)
-        res = self.data - self.fitfunc(xdata, *self.fitp)
+        xdata = self.fitdata.index.values.astype(float)
+        res = self.fitdata - self.fitfunc(xdata, *self.fitp)
         return res
+
+    def _chi2(self):
+        if self._errorbars is None:
+            e = 1
+        else:
+            e = self.errorbars
+
+        return _np.sum((self.residuals / e) ** 2)
+
+    def _Q(self):
+        from scipy.stats import chi2 as _c2
+        if self._errorbars is None:
+            raise ValueError(self._error[3])
+
+        return 1 - _c2.cdf(self._chi2(), len(self.fitdata) - self.nargs - 1)
 
     def _perrors(self):
         return _np.sqrt(_np.diag(self.cov))
@@ -59,12 +89,23 @@ class FitObject():
         bounds = []
 
         for i in range(len(derrors)):
-            bounds.append(self.fitfunc(xs, *self.fitp + deviations[:, i]))
-            bounds.append(self.fitfunc(xs, *self.fitp - deviations[:, i]))
+            bounds.append(self.fitfunc(xs, *(self.fitp + deviations[:, i])))
+            bounds.append(self.fitfunc(xs, *(self.fitp - deviations[:, i])))
 
         stacked = _np.vstack(bounds)
         lower = _np.min(stacked, axis=0)
         upper = _np.max(stacked, axis=0)
+
+        return lower, upper
+
+    def _maxerror_projection(self, xs):
+        import numpy.linalg as _linalg
+
+        derrors, dvecs = _linalg.eig(self.cov)
+        dpmax = [_np.max(derrors[:] * dvecs[:, i]) for i in range(self.nargs)]
+
+        lower = self.fitfunc(xs, *(self.fitp - _np.array(dpmax)))
+        upper = self.fitfunc(xs, *(self.fitp + _np.array(dpmax)))
 
         return lower, upper
 
@@ -96,6 +137,9 @@ class FitObject():
         xs = self.data.index.values.astype(float)
         ys = self.data.values.astype(float)
 
+        xf = self.fitdata.index.values.astype(float)
+        yf = self.fitdata.values.astype(float)
+
         xr = _np.linspace(xmin, xmax, len(xs) * rdens)
         try:
             valid = _np.array([xs[xs > xmin][0], xs[xs < xmax][-1]])
@@ -105,14 +149,6 @@ class FitObject():
         space = _np.abs(_np.array([xmin, xmax]) - _np.array(valid))
         xlims = [xmin + .05 * space[0], xmax - .05 * space[0]]
 
-        # import numpy.linalg as _linalg
-        # derrors, dvecs = _linalg.eig(self.cov)
-        # distances = _np.array([_np.sum(_np.sqrt(derrors[i]) * dvecs[i, :])
-        #                       for i in range(self.nargs)])
-
-        # upper = self.fitp + distances
-        # lower = self.fitp - distances
-
         lower, upper = self._perror_projection(xr)
 
         f = _plt.figure()
@@ -121,7 +157,10 @@ class FitObject():
             ax = f.add_axes((0, 0, .7, .8))
             rax = f.add_axes((0, .875, .7, .125))
             yr = self.residuals.values.astype(float)
-            rax.plot(xs, yr, '.', alpha=.8)
+            if self.errorbars is not None:
+                rax.errorbar(xf, yr, self.errorbars, fmt='.', alpha=.8)
+            else:
+                rax.plot(xf, yr, '.', alpha=.8)
             rax.axhline(0, alpha=.25)
             yloc = _plt.MaxNLocator(2)
             rax.yaxis.set_major_locator(yloc)
@@ -136,7 +175,12 @@ class FitObject():
         except:
             pass
         ax.plot(xr, yfit, alpha=.5)
+        if self.errorbars is not None:
+            ax.errorbar(xf, yf, self.errorbars, fmt='.', alpha=.8)
         ax.plot(xs, ys, '.', alpha=.8)
+
+        if self.fitrange is not None:
+            ax.axvspan(*self.fitrange, alpha=.03)
 
         f.text(.725, .5, self._plotstr())
 
@@ -149,11 +193,18 @@ class FitObject():
         return f, ax
 
     def _plotstr(self):
-        truncated = [x[:5] for x in self.args]
-        longest = max([len(x) for x in truncated])
-        padded = [x + (longest + 1 - len(x)) * ' ' + '= ' for x in truncated]
-        params = ['%.3e' % x for x in self.fitp]
-        plist = [l + r for l, r in zip(padded, params)]
+        truncated = [x[:5] + ' = ' for x in self.args]
+        params = ['{:3.3g}'.format(x) for x in self.fitp]
+        errors = ['$\pm$' + '{:1.1g}'.format(x) for x in self._perrors()]
+        sigma = [' ({:1.0f})'.format(x) for x in self.fitp / self._perrors()]
+        plist = ["".join(s) for s in zip(truncated, params, errors, sigma)]
+
+        plist.append('\n$\chi^2$ = {:3.3g}'.format(self.chi2))
+        if self.errorbars is not None:
+            plist.append('Q = {:2.2g}'.format(self.Q))
+        else:
+            plist.append('$\sigma_{res}$ = %.3g' % (_np.sqrt(self.chi2)
+                         / len(self.data)))
 
         return str.join('\n', plist)
 
@@ -168,13 +219,63 @@ class FitObject():
 
     def fit(self):
         newp, newcov = curve_fit(self.fitdata, self.fitfunc, self.p0,
-                                 pmin=self.pmin, pmax=self.pmax, fitobj=False)
+                                 pmin=self.pmin, pmax=self.pmax, fitobj=False,
+                                 errorbars=self.errorbars)
         self._fitp = newp
         self._cov = newcov
+        self._residuals = self._calculate_residuals()
+        return self
 
     @property
     def data(self):
         return self._data
+
+    @property
+    def fitdata(self):
+        if self.fitrange is None:
+            return self._data
+        else:
+            return self._data.ix[self.fitrange[0]:self.fitrange[1]]
+
+    @property
+    def residuals(self):
+        return self._residuals
+
+    @property
+    def errorbars(self):
+        if (self._errorbars is None) or (self.fitrange is None):
+            return self._errorbars
+        else:
+            return self._errorbars.ix[self.fitrange[0]:self.fitrange[1]]
+
+    @errorbars.setter
+    def errorbars(self, newerrors):
+        if newerrors is None:
+            self._errorbars = None
+        elif len(newerrors) == 1:
+            self._errorbars = _pd.Series([newerrors] * len(self.data),
+                                         index=self.data.index)
+        elif len(newerrors) != len(self.data):
+            raise ValueError(self._error[1])
+        else:
+            self._errorbars = _pd.Series(newerrors, index=self.data.index)
+    pass
+
+    @errorbars.deleter
+    def errorbars(self):
+        self._errorbars = None
+
+    def remove_errorbars(self):
+        del(self.errorbars)
+        pass
+
+    @property
+    def chi2(self):
+        return self._chi2()
+
+    @property
+    def Q(self):
+        return self._Q()
 
     @property
     def fitfunc(self):
@@ -278,17 +379,17 @@ def _general_function(params, xdata, ydata, function):
     return function(xdata, *params) - ydata
 
 
-def _weighted_general_function(params, xdata, ydata, function, weights):
-    return weights * (function(xdata, *params) - ydata)
+def _weighted_general_function(params, xdata, ydata, function, errorbars):
+    return (function(xdata, *params) - ydata) / errorbars
 
 
 def curve_fit(pd_series, f, p0=None, pmin=None, pmax=None,
-              weights=None, fitobj=False, **kw):
+              errorbars=None, fitobj=True, **kw):
     """
     Modified version of scipy's "curve_fit" wrapper for leastsq. Accepts a
-    pandas Series instead of separate x and y arguments. Furthermore, optional
-    "pmin" and "pmax" keyword parameters can be passed that attempt to bound
-    the range over which leastsq can find solutions.
+    pandas Series instead of separate x and y arguments. Additionally,
+    optional "pmin" and "pmax" keyword parameters can be passed that attempt
+    to bound the range over which leastsq can find solutions.
     """
 
     xdata = pd_series.index.values.astype(float)
@@ -309,7 +410,7 @@ def curve_fit(pd_series, f, p0=None, pmin=None, pmax=None,
     p0 = _np.asarray(_gp.iterfy(p0))
 
     if (pmin is None) & (pmax is None):
-        f = f
+        ff = f
     else:
         if pmin is None:
             pmin = _np.asarray([-_np.inf] * len(p0))
@@ -324,14 +425,14 @@ def curve_fit(pd_series, f, p0=None, pmin=None, pmax=None,
             pmax = _np.asarray(pmax)
             p0[p0 > pmax] = (pmax[p0 > pmax] + pmin[p0 > pmax]) / 2
             p0[p0 < pmin] = (pmax[p0 < pmin] + pmin[p0 < pmin]) / 2
-        f = _plimit(f, pmin, pmax)
+        ff = _plimit(f, pmin, pmax)
 
-    args = (xdata, ydata, f)
-    if weights is None:
+    args = (xdata, ydata, ff)
+    if errorbars is None:
         func = _general_function
     else:
         func = _weighted_general_function
-        args += (_np.asarray(weights),)
+        args += (_np.asarray(errorbars),)
 
     # Remove full_output from kw, otherwise we're passing it in twice.
     return_full = kw.pop('full_output', False)
@@ -349,7 +450,7 @@ def curve_fit(pd_series, f, p0=None, pmin=None, pmax=None,
         pcov = _np.inf
 
     if fitobj:
-        return FitObject(pd_series, f, popt, pcov, p0, pmin, pmax)
+        return FitObject(pd_series, f, popt, pcov, p0, pmin, pmax, errorbars)
 
     if return_full:
         return popt, pcov, infodict, errmsg, ier

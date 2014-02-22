@@ -2,6 +2,13 @@ import numpy as _np
 import grumpy as _gp
 
 
+def jackknife(pd_series, block_size=1):
+    raw = _gp.clean_series(pd_series)[0].values.astype(float)
+    blocks = _np.floor(_np.arange(len(raw)) / block_size)
+    jacked = [raw[blocks != x] for x in _np.unique(blocks)]
+    return _np.array(jacked)
+
+
 def bootstrap(pd_series, block_size, samples):
 
     """
@@ -19,6 +26,12 @@ def bootstrap(pd_series, block_size, samples):
 
 
 def block_bootstrap(pd_series, size, blocks=None):
+
+    """
+    BLOCK_BOOTSTRAP creates subsamples of data specified by "blocks" of length
+    "size". Statistical properties should only differ from true bootstrapping
+    if there are point-to-point correlations in the data.
+    """
 
     cleaned = _gp.clean_series(pd_series)[0]
     raw = cleaned.values.astype(float)
