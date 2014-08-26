@@ -2,6 +2,7 @@ import numpy as _np
 import grumpy as _gp
 import pandas as _pd
 import matplotlib.pyplot as _plt
+import scipy.integrate as _spi
 
 
 def add_ramp_index(dataframe, offset=0, index_on='b_field', file_index=0):
@@ -540,6 +541,21 @@ class AggregatedBScan(ReducedBScan):
         b = df_series.index.values.astype(float)
         df = df_series.values.astype(float)
         return df / (sensitivity * b ** 2)
+
+    def  _alpha_calculator(self, mode_number=None, pad_fraction=None):
+        
+        if mode_number is None:
+            mode_number = self.cantilever.mode
+        if pad_fraction is None:
+            pad_fraction = self.cantilever.ring.fraction
+
+        beta = _gp.data.cantilevers.mode_gamma(mode_number)
+        a = -(_np.sin(beta) + _np.sinh(beta)) / (_np.cos(beta)+_np.cosh(beta))
+
+        xx = _np.arange(0,1,0.001)
+        alphaarr = beta * (_np.cos(beta * xx) - _np.cosh(beta * xx) - a * (_np.sin(beta * xx) + _np.sinh( beta * xx))) / (a * (_np.cos(beta) - _np.cosh(beta)) + _np.sin(beta) - _np.sinh(beta))
+        alpha = _spi.integrate.cumtrapz(alphaarr[(_np.shape(xx)[0] * (1-pad_fraction)):])[-1] / (_np.shape(xx)[0] * pad_fraction)
+        return alpha
 
     def drop_ramps(self, ramps_to_drop):
 
