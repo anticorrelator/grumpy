@@ -43,29 +43,33 @@ class Ringdown():
         raw = _pd.read_table(datafile, header=None)
         raw['time'] = raw.ix[0, 2] * raw.index.values
         raw.set_index(['time'], inplace=True)
-
         self.f0 = raw.ix[0, 3]
-        self.tc_guess = raw.ix[0, 4]
         self.data = raw.drop([2, 3, 4], 1)
+        self.ringdown = self.data[0]
+        self.initial_guess = [self.data[0].max(), raw.ix[0, 4]]
         self.fit()
 
-    def ringdownfunc(self, p=None):
 
-        if p is None:
-            return lambda p1, p2, time: p1 * _np.exp(time / p2)
-        else:
-            return lambda time: p[0] * _np.exp(time / p[1])
+    def ringdownfit(self, time):
+        return self.amplitude * _np.e ** (-time / self.tau)
 
-    def fit(self, **kwargs):
-        p0 = (self.data[0].max(), self.tc_guess)
-        fitfunc = self.ringdownfunc()
-        self._fitoutput = _gp.curve_fit(self.data[0], fitfunc, p0, fitobj=True,
-                                        **kwargs)
-        self.fitp = self._fitoutput.fitp
-        self.q = _np.abs(_np.pi * self.fitp[1] * self.f0)
-        self.rdfit = self.ringdownfunc(self.fitp)
 
+    def fit(self, e_folds=3, **kwargs):
+        logdata = _np.log(self._truncated_ringdown(e_folds))
+        p0 = self.initial_guess
+        self.fitp = _np.polyfit(logdata.values, logdata.index.values, 1)
+        self.amplitude = _np.e ** self.fitp[1]
+        self.tau = -1 / self.fitp[0]
+        self.q = _np.abs(_np.pi * (self.fitp[1] ** -1) * self.f0)
         return self
+
+
+    def _truncated_ringdown(self, e_folds):
+        e_fold_factor = 1 / (e_folds * _np.e)
+        ringdown = self.ringdown
+        maximum = ringdown.max()
+        truncation = ringdown.ix[ringdown < maximum * e_fold_factor].index[0]
+        return ringdown.ix[:truncation]
 
 
 class Calibration():
