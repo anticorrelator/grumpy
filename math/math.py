@@ -657,12 +657,12 @@ def correlate(series_a, series_b, as_series=False):
     correlated = norm_factor * _sp.correlate(clean_a, clean_b, 'same')
 
     if as_series is False:
-        return correlated.values.astype(float)
+        return correlated.astype(float)
     else:
         indices = _np.arange(_np.max((len(series_a), len(series_b))))
         center = _np.ceil(_np.median(indices))
         offset = indices - center
-        return _pd.Series(correlated.values.astype(float), index=offset)
+        return _pd.Series(correlated.astype(float), index=offset)
 
 
 def corr_df(pd_dframe, reference=None, series_list=None):

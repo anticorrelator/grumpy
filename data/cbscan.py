@@ -239,11 +239,7 @@ class SmoothedBScan(RawBScan):
         return _gp.absfft(self.ab)
 
     def save(self, targetfile):
-        import os as _os
-        if _os.path.isfile(targetfile):
-            _p.dump(BScan(self), open(targetfile, 'wb'))
-        else:
-            _p.dump(BScan(self), open(targetfile, 'xb'))
+        _pd.to_pickle(BScan(self), targetfile)
 
 
 class BScan():
