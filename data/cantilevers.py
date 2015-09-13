@@ -52,18 +52,16 @@ class Ringdown():
     def ringdownfunc(self, p=None):
 
         if p is None:
-            return lambda p, time: p[0] * _np.exp(time / p[1])
+            return lambda p1, p2, time: p1 * _np.exp(time / p2)
         else:
             return lambda time: p[0] * _np.exp(time / p[1])
 
     def fit(self, **kwargs):
-
         p0 = (self.data[0].max(), self.tc_guess)
-
         fitfunc = self.ringdownfunc()
-
-        self._fitoutput = _gp.lsfit(fitfunc, p0, self.data[0], **kwargs)
-        self.fitp = self._fitoutput[0]
+        self._fitoutput = _gp.curve_fit(self.data[0], fitfunc, p0, fitobj=True,
+                                        **kwargs)
+        self.fitp = self._fitoutput.fitp
         self.q = _np.abs(_np.pi * self.fitp[1] * self.f0)
         self.rdfit = self.ringdownfunc(self.fitp)
 

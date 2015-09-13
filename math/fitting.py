@@ -354,10 +354,6 @@ class FitObject():
         pass
 
 
-class Fiterator(FitObject):
-    pass
-
-
 def _plimit(func, pmin, pmax):
     pmin = _np.asarray(pmin)
     pmax = _np.asarray(pmax)
