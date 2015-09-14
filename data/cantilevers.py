@@ -51,16 +51,16 @@ class Ringdown():
 
 
     def ringdownfit(self, time):
-        return self.amplitude * _np.e ** (-time / self.tau)
+        return self.amplitude * _np.exp(-time / self.tau)
 
 
     def fit(self, e_folds=3, **kwargs):
         logdata = _np.log(self._truncated_ringdown(e_folds))
         p0 = self.initial_guess
-        self.fitp = _np.polyfit(logdata.values, logdata.index.values, 1)
-        self.amplitude = _np.e ** self.fitp[1]
+        self.fitp = _np.polyfit(logdata.index.values, logdata.values, 1)
+        self.amplitude = _np.exp(self.fitp[1])
         self.tau = -1 / self.fitp[0]
-        self.q = _np.abs(_np.pi * (self.fitp[1] ** -1) * self.f0)
+        self.q = _np.abs(_np.pi * (self.fitp[0] ** -1) * self.f0)
         return self
 
 
