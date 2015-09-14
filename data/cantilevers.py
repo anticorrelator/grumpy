@@ -1,6 +1,7 @@
 import numpy as _np
 import grumpy as _gp
 import pandas as _pd
+import matplotlib.pyplot as _plt
 import scipy.special as _sps
 
 
@@ -62,6 +63,16 @@ class Ringdown():
         self.tau = -1 / self.fitp[0]
         self.q = _np.abs(_np.pi * (self.fitp[0] ** -1) * self.f0)
         return self
+
+
+    def plot(self):
+        tpoints = self.data.index.values.astype(float)
+        f, ax = _plt.subplots()
+        ax.plot(tpoints, self.data[0].values.astype(float), alpha=.2)
+        ax.plot(tpoints, self.ringdownfit(tpoints), lw=3, alpha=.8)
+        ax.set_title('Cantilever ringdown')
+        ax.set_ylabel('Lock-in amplitude [V]')
+        ax.set_xlabel('Time [seconds]')
 
 
     def _truncated_ringdown(self, e_folds):
