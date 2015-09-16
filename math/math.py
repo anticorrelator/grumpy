@@ -125,10 +125,6 @@ def axify(func=None, output='vector', axify_dim=1):
     return axified
 
 
-def quadrature(funcs):
-    pass
-
-
 def clean_series(pd_series):
 
     """
@@ -273,7 +269,8 @@ def demean(data, axis=None):
     return demeaned
 
 
-def trim(data, reject=.5, axis=None):
+@axify(output='vector')
+def trim(data, reject=.5):
 
     """
     Replaces extremal values in a numpy array or list with NaN.
@@ -301,20 +298,11 @@ def trim(data, reject=.5, axis=None):
 
     ds = _np.array(data.astype(float).copy())
 
-    if axis is None:
-        axis = 0
-
-    if ds.ndim > 2:
-        dim_msg = 'Expected 2 or fewer dimensions'
-        raise TypeError(dim_msg)
-    if axis > ds.ndim:
-        ax_msg = 'axis out of bounds'
-        raise ValueError(ax_msg)
     if (reject < 0) or (reject > 1):
         r_msg = 'reject parameter must be between 0 and 1'
         raise ValueError(r_msg)
 
-    dlen = ds.shape[axis]
+    dlen = len(data)
     thresh = _np.floor(dlen * reject / 2)
 
     if thresh == 0:
@@ -322,23 +310,15 @@ def trim(data, reject=.5, axis=None):
     if thresh == dlen / 2:
         thresh -= 1
 
-    rank = _np.argsort(ds, axis=axis)
+    rank = _np.argsort(ds)
 
-    if ds.ndim is 1:
-        ds[rank[-thresh:]] = _np.nan
-        ds[rank[:thresh]] = _np.nan
-    elif axis == 0:
-        for x, r in zip(ds.T, rank.T):
-            x[r[-thresh:]] = _np.nan
-            x[r[:thresh]] = _np.nan
-    elif axis == 1:
-        for x, r in zip(ds, rank):
-            x[r[-thresh:]] = _np.nan
-            x[r[:thresh]] = _np.nan
+    ds[rank[-thresh:]] = _np.nan
+    ds[rank[:thresh]] = _np.nan
     return ds
 
 
-def reject_outliers(data, reject=.5, axis=None):
+@axify(output='vector')
+def reject_outliers(data, reject=.5):
 
     """
     Replaces outliers in a numpy array with NaN.
@@ -364,20 +344,11 @@ def reject_outliers(data, reject=.5, axis=None):
 
     ds = _np.array(data.astype(float).copy())
 
-    if axis is None:
-        axis = ds.ndim - 1
-
-    if ds.ndim > 2:
-        dim_msg = 'Expected 2 or fewer dimensions'
-        raise TypeError(dim_msg)
-    if axis > ds.ndim:
-        ax_msg = 'axis out of bounds'
-        raise ValueError(ax_msg)
     if (reject < 0) or (reject > 1):
         r_msg = 'reject parameter must be between 0 and 1'
         raise ValueError(r_msg)
 
-    dlen = _np.shape(ds)[axis]
+    dlen = len(ds)
     thresh = _np.floor(dlen * reject)
 
     if thresh == 0:
@@ -385,20 +356,13 @@ def reject_outliers(data, reject=.5, axis=None):
     if thresh == dlen:
         thresh -= 1
 
-    rank = _np.argsort(_np.abs(demedian(ds, axis=axis)), axis=axis)
-
-    if ds.ndim is 1:
-        ds[rank[-thresh:]] = _np.nan
-    elif axis == 0:
-        for x, r in zip(ds.T, rank.T):
-            x[r[-thresh:]] = _np.nan
-    elif axis == 1:
-        for x, r in zip(ds, rank):
-            x[r[-thresh:]] = _np.nan
+    rank = _np.argsort(_np.abs(demedian(ds)))
+    ds[rank[-thresh:]] = _np.nan
     return ds
 
 
-def robust_mean(data, reject=.5, method='trim', stdcutoff=None, axis=None):
+@axify(output='scalar')
+def robust_mean(data, reject=.5, method='trim', stdcutoff=None):
 
     """
     Robustified mean. Rejects outliers using "method" before taking mean.
@@ -418,17 +382,17 @@ def robust_mean(data, reject=.5, method='trim', stdcutoff=None, axis=None):
     """
 
     if method == "trim":
-        rejected = trim(data, reject=reject, axis=axis)
+        rejected = trim(data, reject=reject)
     elif method == "reject_outliers":
-        rejected = reject_outliers(data, reject=reject, axis=axis)
+        rejected = reject_outliers(data, reject=reject)
 
     if stdcutoff is None:
-        return _bn.nanmean(rejected, axis=axis)
+        return _bn.nanmean(rejected)
     else:
         if _np.std(data) < stdcutoff:
-            return _bn.nanmean(data, axis=axis)
+            return _bn.nanmean(data)
         else:
-            return _bn.nanmean(rejected, axis=axis)
+            return _bn.nanmean(rejected)
 
 
 def g_mean(data, axis=None):
