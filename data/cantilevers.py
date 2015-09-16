@@ -70,7 +70,7 @@ class Ringdown():
         f, ax = _plt.subplots()
         ax.plot(tpoints, self.data[0].values.astype(float), alpha=.2)
         ax.plot(tpoints, self.ringdownfit(tpoints), lw=3, alpha=.8)
-        ax.set_title('Cantilever ringdown')
+        f.suptitle('Cantilever ringdown')
         ax.set_ylabel('Lock-in amplitude [V]')
         ax.set_xlabel('Time [seconds]')
 
