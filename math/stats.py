@@ -14,13 +14,13 @@ def bootstrap(pd_series, block_size, samples):
     """
     BOOTSTRAP randomly selects random subsets from the input pandas Series
     "pd_series". Each random subset has length "block_size". Internally calls
-    random.sample.
+    numpy.random.choice.
     """
 
-    from random import sample as _rs
+    from numpy.random import choice as _rc
     cleaned = _gp.clean_series(pd_series)[0]
     raw = cleaned.values.astype(float).tolist()
-    samplings = _np.array([_rs(raw, block_size) for count in range(samples)])
+    samplings = _np.array([_rc(raw, block_size) for count in range(samples)])
 
     return samplings
 
