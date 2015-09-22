@@ -131,6 +131,5 @@ def waterfall(the_dataframe, offset=.3):
 
     _plt.ylim(ylimits)
     _plt.xlim(xlimits)
-    _plt.show()
 
     return ax

@@ -188,8 +188,6 @@ class FitObject():
         ax.set_yscale(yscale, **ykwargs)
         ax.set_xlim(xlims)
 
-        _plt.show()
-
         return f, ax
 
     def _plotstr(self):

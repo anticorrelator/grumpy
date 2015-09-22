@@ -3,6 +3,7 @@ import grumpy as _gp
 import pandas as _pd
 import matplotlib.pyplot as _plt
 import scipy.special as _sps
+import scipy.optimize as _spo
 
 
 def mode_gamma(mode_number):
@@ -101,35 +102,23 @@ class Calibration():
         self.fit()
 
     def _calibrate(self):
-
         vd_max = 1.842 / self.fitp[1]
-        x2v = 4 * _np.pi * vd_max / (1.842 * self.wavelength)
-        cal_range_1 = _np.linspace(0, .1 * vd_max, 1e3)
-        cal_range_2 = _np.linspace(0, .8 * vd_max, 1e3)
+        self.x2v = 4 * _np.pi * vd_max / (1.842 * self.wavelength)
+        return self
 
+
+    def peak_drive(self, drive):
         # extra_factors accounts for the Vpeak-Vrms conversion as well as
         # compensating for the fiber position not being at the cantilever tip
-        extra_factors = _np.sqrt(2) * self.modeshape(self.fiber_position,
-                                                     self.mode_number)
-
-        smallfit = _np.polyfit(self.besselfit(cal_range_1),
-                               cal_range_1 / x2v, 1)
-
-        largefit = _np.polyfit(self.besselfit(cal_range_2),
-                               cal_range_2 / x2v, 4)
-
-        self.small = lambda x: _np.polyval(smallfit, x) / extra_factors
-        self.large = lambda x: _np.polyval(largefit, x) / extra_factors
-
-        return self
+        extra_factors = self.modeshape(self.fiber_position, self.mode_number)
+        return drive / self.x2v / extra_factors
 
     def besselfunc(self, p=None):
 
         if p is None:
-            return lambda p, x: p[0] * (p[2] * x + _sps.jn(1, p[1] * x))
+            return lambda p0, p1, x: p0 * _np.abs(_sps.jn(1, p1 * x))
         else:
-            return lambda x: p[0] * (p[2] * x + _sps.jn(1, p[1] * x))
-
+            return lambda x: p[0] * _np.abs(_sps.jn(1, p[1] * x))
     def modeshape(self, fiber_position, nmode):
 
         alpha = [-1.3622, -.9819, -1.008, -1.000]
@@ -143,14 +132,19 @@ class Calibration():
 
         return shape(fiber_position) / shape(1)
 
-    def fit(self, **kwargs):
+    def p0(self):
+        data = self.data[2]
+        argmax = data.argmax()
+        return (data.max() / .5819, 1.842 / argmax, 0)
 
-        p0 = (.5819 * self.data[2].max(), 1, 0)
-
-        fitfunc = self.besselfunc()
-
-        self._fitoutput = _gp.lsfit(fitfunc, p0, self.data[2], **kwargs)
-        self.fitp = self._fitoutput[0]
+    def fit(self):
+        data = self.data[2]
+        argmax = data.argmax()
+        data = data[:(argmax * 1.2)]
+        # fitfunc = self.besselfunc()
+        # self._fitoutput = _gp.curve_fit(data[:argmax], fitfunc, self.p0())
+        # self.fitp = self._fitoutput.fitp
+        self.fitp = self.p0()
         self.besselfit = self.besselfunc(self.fitp)
         self._calibrate()
 

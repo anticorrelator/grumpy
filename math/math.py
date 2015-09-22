@@ -94,9 +94,6 @@ def axify(func=None, output='vector', axify_dim=1):
 
     @_functools.wraps(func)
     def axified(*args, axis=None, **kwargs):
-        if not isinstance(args[0], _np.ndarray):
-            type_msg = 'Input must be array-like.'
-            raise TypeError(type_msg)
         if args[0].ndim >= axify_dim:
             dat = args[0]
             dims = dat.shape
@@ -118,6 +115,8 @@ def axify(func=None, output='vector', axify_dim=1):
                 subarray = dat[subindex].ravel()
                 output_array[subindex] = func(subarray, *args[1:], **kwargs)
 
+            if output_array.size == 1:
+                return float(output_array)
             return _np.squeeze(output_array)
 
         else:
@@ -362,7 +361,7 @@ def reject_outliers(data, reject=.5):
 
 
 @axify(output='scalar')
-def robust_mean(data, reject=.5, method='trim', stdcutoff=None):
+def robust_mean(data, reject=.05, method='trim', stdcutoff=None):
 
     """
     Robustified mean. Rejects outliers using "method" before taking mean.
@@ -375,7 +374,7 @@ def robust_mean(data, reject=.5, method='trim', stdcutoff=None):
     Parameters
     ----------
     data : array-like
-    reject : float, optional, default .5
+    reject : float, optional, default .05
     method : string, optional, default 'trim'
     stdcutoff : float, optional, default None
     axis : int, optional, default (ndim - 1)

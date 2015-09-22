@@ -169,7 +169,7 @@ class SmoothedBScan(RawBScan):
 
     def _calculate_scatter(self, window=3):
         ramps = self.df.columns
-        std_dict = {c: [_bn.nanstd(self.df[c][window*i: window*(i+1)])
+        std_dict = {c: [self.df[c][window*i: window*(i+1)].std()
                     for i in range(len(self.df[c]))] for c in ramps}
         std = _pd.DataFrame(std_dict)
         std_df = _pd.DataFrame({c: [std[c][_np.floor(i / window)] for i in

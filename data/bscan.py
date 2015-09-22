@@ -396,7 +396,6 @@ class ReducedBScan:
 
         _gp.rstyle(ax)
 
-        _plt.show()
         return ax
 
     def plot_raw(self, timeseries=False, **kwargs):
@@ -417,7 +416,6 @@ class ReducedBScan:
 
         _gp.rstyle(ax)
 
-        _plt.show()
         return ax
 
     def copy(self):
@@ -543,7 +541,7 @@ class AggregatedBScan(ReducedBScan):
         return df / (sensitivity * b ** 2)
 
     def  _alpha_calculator(self, mode_number=None, pad_fraction=None):
-        
+
         if mode_number is None:
             mode_number = self.cantilever.mode
         if pad_fraction is None:
@@ -598,7 +596,6 @@ class AggregatedBScan(ReducedBScan):
 
         _gp.rstyle(ax)
 
-        _plt.show()
         return ax
 
     def plot_df(self, timeseries=False, **kwargs):
@@ -619,7 +616,6 @@ class AggregatedBScan(ReducedBScan):
 
         _gp.rstyle(ax)
 
-        _plt.show()
         return ax
 
     def plot_fft(self, dia=None, w=None, t=None, angle=None, **kwargs):
@@ -665,7 +661,6 @@ class AggregatedBScan(ReducedBScan):
 
         _gp.rstyle(ax)
 
-        _plt.show()
         return ax
 
     def plot(self, **kwargs):
@@ -680,7 +675,6 @@ class AggregatedBScan(ReducedBScan):
 
         _gp.rstyle(ax)
 
-        _plt.show()
         return ax
 
     def copy(self):
